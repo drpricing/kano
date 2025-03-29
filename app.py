@@ -30,16 +30,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-Setting Up Streamlit Secrets
-Ensure you have the .streamlit/secrets.toml file set up correctly:
-
-Create a .streamlit directory in your project root.
-Create a secrets.toml file inside the .streamlit directory with the following content:
-[groq]
-api_key = "your_groq_api_key_here"
-Deployment Steps
-Push your code to GitHub:
-
-git add .
-git commit -m "Updated with Streamlit secrets for Groq API key"
-git push origin main
