@@ -9,29 +9,12 @@ import plotly.express as px
 from datetime import datetime
 
 # Set page config
-st.set_page_config(
-    page_title="Product Feature Optimization",
-    page_icon="🤖",
-    layout="wide"
-)
+st.set_page_config(page_title="Product Feature Optimization", page_icon="🤖", layout="wide")
 
 # Sidebar for API key and settings
 with st.sidebar:
     st.title("⚙️ Settings")
     api_key = st.secrets["groq"]["api_key"]
-    
-    st.markdown("---")
-    st.markdown("### How does it work?")
-    st.markdown("""
-    1️⃣ Setup the experiment in the **Setup** tab  
-    2️⃣ Click **"Start Experiment"** to run it  
-    3️⃣ View results in the **Results** tab  
-    """)
-    st.markdown("---")
-    st.markdown("### About")
-    st.markdown("""
-    This tool conducts Kano Model experiments to evaluate product features.
-    """)
 
 # Main content
 st.title('🤖 Product Feature Optimization')
@@ -43,35 +26,20 @@ tab1, tab2 = st.tabs(["Setup", "Results"])
 with tab1:
     st.header("Experiment Setup")
     
-    # Initialize session state for input values if they don't exist
+    # Initialize session state
     session_defaults = {
-        'product_name': "", 
-        'target_customers': "", 
-        'features': "", 
-        'num_respondents': 8, 
-        'experiment_complete': False, 
-        'results': None
+        'product_name': "", 'target_customers': "", 'features': "", 
+        'num_respondents': 8, 'experiment_complete': False, 'results': None
     }
     for key, default in session_defaults.items():
         if key not in st.session_state:
             st.session_state[key] = default
 
-    # Product Name
-    st.subheader("Product Name")
-    st.session_state.product_name = st.text_input('Enter the product name', value=st.session_state.product_name)
-
-    # Target Customers
-    st.subheader("Target Customers")
-    st.session_state.target_customers = st.text_area('Describe your target customers', value=st.session_state.target_customers, height=150)
-
-    # Features
-    st.subheader("Features")
-    st.markdown("Enter one feature per line.")
-    st.session_state.features = st.text_area('List features to be tested (one per line)', value=st.session_state.features, height=150)
-
-    # Number of respondents
-    st.subheader("Sample Size")
-    st.session_state.num_respondents = st.number_input('Number of respondents', min_value=1, max_value=100, value=st.session_state.num_respondents)
+    # Inputs
+    st.session_state.product_name = st.text_input("Enter the product name", value=st.session_state.product_name)
+    st.session_state.target_customers = st.text_area("Describe your target customers", value=st.session_state.target_customers, height=150)
+    st.session_state.features = st.text_area("List features to be tested (one per line)", value=st.session_state.features, height=150)
+    st.session_state.num_respondents = st.number_input("Number of respondents", min_value=1, max_value=100, value=st.session_state.num_respondents)
 
     # Start button
     if st.button('🚀 Start Experiment', type="primary"):
@@ -86,38 +54,32 @@ with tab1:
             st.info("Running experiment... Please wait.")
             progress_bar = st.progress(0)
 
-            # Initialize Groq client
             client = Groq(api_key=api_key)
 
-            # Define synthetic respondent attributes
             ages = range(18, 78)
             genders = ["male", "female", "not specified"]
-            customer_types = ["price sensitive", "health conscious", "convenience seeker", "smart shopper"]
 
-            # Generate personas
-            profiles = []
-            for _ in range(st.session_state.num_respondents):
-                profiles.append({
-                    "Age": random.choice(ages),
-                    "Gender": random.choice(genders),
-                    "Customer Type": random.choice(customer_types),
-                })
+            # Generate synthetic personas (Age & Gender only)
+            profiles = [{"Age": random.choice(ages), "Gender": random.choice(genders)}
+                        for _ in range(st.session_state.num_respondents)]
             profiles_df = pd.DataFrame(profiles)
 
-            # Generate detailed personas using Groq
+            # Generate personas with Groq
             personas = []
-            system_instructions = "Create a detailed persona based on the provided attributes."
+            system_instructions = f"""
+            Generate a detailed persona based on age, gender, and the following target customer description:
+            {st.session_state.target_customers}
+
+            Include assumed background, interests, and purchase behaviors.
+            """
 
             for i, row in profiles_df.iterrows():
                 progress_bar.progress((i + 1) / (profiles_df.shape[0] * 2))
-                input_text = f"Age: {row['Age']}; Gender: {row['Gender']}; Customer Type: {row['Customer Type']}"
+                input_text = f"Age: {row['Age']}; Gender: {row['Gender']}"
 
                 response = client.chat.completions.create(
                     model="llama3-70b-8192",
-                    messages=[
-                        {"role": "system", "content": system_instructions},
-                        {"role": "user", "content": input_text}
-                    ],
+                    messages=[{"role": "system", "content": system_instructions}, {"role": "user", "content": input_text}],
                     temperature=0
                 )
                 personas.append(response.choices[0].message.content)
@@ -125,9 +87,13 @@ with tab1:
 
             profiles_df['Persona'] = personas
 
-            # Prepare Kano evaluation prompts
+            # Extract features correctly
             feature_list = [f.strip() for f in st.session_state.features.splitlines() if f.strip()]
+            if not feature_list:
+                st.error("No valid features found. Please check your input.")
+                st.stop()
 
+            # Kano evaluation prompt
             kano_instructions = """
             Evaluate each feature in two scenarios:
             1. When the feature is present
@@ -177,8 +143,13 @@ with tab2:
     else:
         st.header("Results Analysis")
 
-        # Mapping for Kano ratings
-        rating_map = {"1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "I like it": 1, "I expect it": 2, "I am indifferent": 3, "I can live with it": 4, "I dislike it": 5}
+        # Display respondent profiles
+        st.subheader("🧑‍🤝‍🧑 Respondent Profiles")
+        st.dataframe(st.session_state.results["personas"][["Age", "Gender", "Persona"]])
+
+        rating_map = {"1": 1, "2": 2, "3": 3, "4": 4, "5": 5, 
+                      "I like it": 1, "I expect it": 2, "I am indifferent": 3, 
+                      "I can live with it": 4, "I dislike it": 5}
         
         def classify_kano(f, d):
             return "Excitement" if f == 1 and d >= 4 else "Must-Have" if f == 2 and d == 5 else "Indifferent" if f == 3 and d == 3 else "Expected"
@@ -192,10 +163,15 @@ with tab2:
                         f, d = rating_map.get(str(data[feature]["present"]).strip()), rating_map.get(str(data[feature]["absent"]).strip())
                         if f and d:
                             kano_data.append({"Feature": feature, "Classification": classify_kano(f, d)})
-            except:
-                continue
+            except Exception as e:
+                st.warning(f"Error parsing response: {e}")
+
+        if not kano_data:
+            st.error("No valid classifications found.")
+            st.stop()
 
         kano_df = pd.DataFrame(kano_data)
+        st.write("## Kano Evaluation Results")
         st.dataframe(kano_df)
 
         st.download_button("📥 Download Results", kano_df.to_csv(index=False), "kano_results.csv", "text/csv")
