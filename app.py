@@ -75,7 +75,7 @@ with tab1:
 
             # Define respondent attributes
             ages = range(18, 78)
-            genders = ["Male", "Female", "Non-binary"]
+            genders = ["Male", "Female", "Unknown"]
 
             # Generate respondent profiles
             profiles = []
