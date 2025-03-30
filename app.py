@@ -18,15 +18,13 @@ st.set_page_config(page_title="Product Feature Optimization", page_icon="🤖", 
 with st.sidebar:
     st.title("⚙️ Settings")
     api_key = st.secrets["groq"]["api_key"]
-
     st.markdown("---")
     st.markdown("### How does it work?")
     st.markdown("""
-    1️⃣ Setup the survey in the **Setup** tab.  
-    2️⃣ Conduct the survey in **Survey Synthetic Respondents**.  
+    1️⃣ Setup the survey in the **Setup** tab. 
+    2️⃣ Conduct the survey in **Survey Synthetic Respondents**. 
     3️⃣ Analyze results in **Results**.
     """)
-
     st.markdown("---")
     st.markdown("### About")
     st.markdown("This tool evaluates features using a Kano Model approach.")
@@ -38,7 +36,6 @@ tab1, tab2, tab3 = st.tabs(["Setup", "Survey Synthetic Respondents", "Results"])
 # -------------------- Setup Tab --------------------
 with tab1:
     st.header("Setup")
-
     if 'start_experiment' not in st.session_state:
         st.session_state.start_experiment = False
     if 'experiment_complete' not in st.session_state:
@@ -49,7 +46,6 @@ with tab1:
     # Product Information
     st.subheader("Product Name")
     product_name = st.text_input('Enter product name', key="product_name")
-
     st.subheader("Target Customers")
     target_customers = st.text_area('Describe your target customers', height=150, key="target_customers")
 
@@ -81,7 +77,6 @@ with tab2:
         st.success("✅ Survey completed! View results in 'Results'.")
     else:
         st.header("Survey Synthetic Respondents")
-
         progress_bar = st.progress(0)
 
         # Initialize Groq Client
@@ -95,7 +90,6 @@ with tab2:
         profiles = []
         for _ in range(st.session_state.num_respondents):
             profiles.append({"Age": random.choice(ages), "Gender": random.choice(genders)})
-
         profiles_df = pd.DataFrame(profiles)
 
         # API Rate Limit Handling
@@ -107,7 +101,6 @@ with tab2:
         for i, row in profiles_df.iterrows():
             progress_bar.progress((i + 1) / (len(profiles_df) * 3))
             input_text = f"Age: {row['Age']}; Gender: {row['Gender']}"
-
             retries = 0
             while retries < MAX_RETRIES:
                 try:
@@ -124,24 +117,20 @@ with tab2:
                     retries += 1
                     st.warning(f"Rate limit hit. Retrying ({retries}/{MAX_RETRIES}) in {RETRY_DELAY} seconds...")
                     time.sleep(RETRY_DELAY)
-
         profiles_df["Persona"] = personas
 
         # Kano Model Evaluation
         features = [f.strip() for f in features_input.splitlines() if f.strip()]
         kano_responses = []
-
         for i, row in profiles_df.iterrows():
             progress_bar.progress((i + 1 + len(profiles_df)) / (len(profiles_df) * 3))
-
             prompt = f"""
-You are a synthetic respondent. Based on the persona below, evaluate each feature:
-- Rate the feature **when present** and **when absent** (1-5 scale).  
-- Respond **only in JSON format**.
-
-Persona: {row['Persona']}
-Features: {features}
-"""
+            You are a synthetic respondent. Based on the persona below, evaluate each feature:
+            - Rate the feature **when present** and **when absent** (1-5 scale). 
+            - Respond **only in JSON format**.
+            Persona: {row['Persona']}
+            Features: {features}
+            """
             retries = 0
             while retries < MAX_RETRIES:
                 try:
@@ -158,7 +147,6 @@ Features: {features}
                     retries += 1
                     st.warning(f"Rate limit hit. Retrying ({retries}/{MAX_RETRIES}) in {RETRY_DELAY} seconds...")
                     time.sleep(RETRY_DELAY)
-
         st.session_state.results = {"profiles": profiles_df, "responses": kano_responses, "features": features}
         st.session_state.experiment_complete = True
         st.success("✅ Survey completed! View results in 'Results'.")
@@ -197,7 +185,6 @@ with tab3:
         else:
             kano_df = pd.DataFrame(all_classifications)
             kano_df.index += 1
-
             st.write("### Kano Evaluations")
             st.dataframe(kano_df)
 
