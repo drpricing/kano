@@ -166,6 +166,10 @@ with tab2:
                     st.write("📌 Debug: Example API Response", parsed_json)
                     debug_response_shown = True
 
+                if "features" not in parsed_json:
+                    st.warning(f"Missing 'features' in response: {parsed_json}")
+                    continue  # Skip if 'features' is missing
+
                 for feat_obj in parsed_json.get("features", []):
                     if "feature" not in feat_obj or "when_present" not in feat_obj or "when_absent" not in feat_obj:
                         st.warning(f"Skipping invalid entry: {feat_obj}")
