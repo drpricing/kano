@@ -97,8 +97,10 @@ with tab1:
                     try:
                         response = client.chat.completions.create(
                             model="llama3-70b-8192",
-                            messages=[{"role": "system", "content": "Create a customer persona based on:"},
-                                      {"role": "user", "content": input_text}],
+                            messages=[
+                                {"role": "system", "content": "Create a customer persona based on:"},
+                                {"role": "user", "content": input_text}
+                            ],
                             temperature=0
                         )
                         personas.append(response.choices[0].message.content)
@@ -112,23 +114,46 @@ with tab1:
 
             # Kano Model Evaluation
             features = [f.strip() for f in features_input.splitlines() if f.strip()]
+            # Updated prompt: explicitly require a JSON object with key 'features'
+            kano_prompt = f"""
+You are a synthetic respondent. Based on the persona below, evaluate each feature.
+For each feature, provide two ratings (on a 1-5 scale):
+ - 'when_present': rating when the feature is present
+ - 'when_absent': rating when the feature is absent
+
+Use the scale:
+1 = I like it
+2 = I expect it
+3 = I am indifferent
+4 = I can live with it
+5 = I dislike it
+
+Return your answer as a JSON object with the following format:
+{{
+  "features": [
+      {{"feature": "<Feature Name>", "when_present": <rating>, "when_absent": <rating>}},
+      ... (one object per feature)
+  ]
+}}
+
+Persona: {{}}
+"""
             kano_responses = []
             for i, row in profiles_df.iterrows():
                 progress_bar.progress((i + 1 + len(profiles_df)) / (len(profiles_df) * 3))
-                prompt = f"""
-                You are a synthetic respondent. Based on the persona below, evaluate each feature:
-                - Rate the feature **when present** and **when absent** (1-5 scale). 
-                - Respond **only in JSON format**.
-                Persona: {row['Persona']}
-                Features: {features}
-                """
+                # Replace the placeholder with the current persona
+                prompt = kano_prompt.replace("{}", row["Persona"], 1)
+                # Also, include the features list in the prompt
+                prompt += f"\nFeatures: {features}"
                 retries = 0
                 while retries < MAX_RETRIES:
                     try:
                         response = client.chat.completions.create(
                             model="llama3-70b-8192",
-                            messages=[{"role": "system", "content": "Only return a JSON object."},
-                                      {"role": "user", "content": prompt}],
+                            messages=[
+                                {"role": "system", "content": "Only return a JSON object as described."},
+                                {"role": "user", "content": prompt}
+                            ],
                             temperature=0
                         )
                         kano_responses.append(response.choices[0].message.content)
@@ -175,12 +200,17 @@ with tab2:
             try:
                 parsed_json = json.loads(resp)
                 if "features" in parsed_json:
-                    for feature in parsed_json["features"]:
-                        f = rating_map.get(feature["when_present"], feature["when_present"])
-                        d = rating_map.get(feature["when_absent"], feature["when_absent"])
+                    for feat_obj in parsed_json["features"]:
+                        # Force ratings to string and then map
+                        f_raw = str(feat_obj.get("when_present", "")).strip()
+                        d_raw = str(feat_obj.get("when_absent", "")).strip()
+                        f = rating_map.get(f_raw, None)
+                        d = rating_map.get(d_raw, None)
+                        if f is None or d is None:
+                            continue
                         classification = classify_kano(f, d)
                         all_classifications.append({
-                            "Feature": feature["feature"],
+                            "Feature": feat_obj.get("feature", "Unknown"),
                             "Present": f,
                             "Absent": d,
                             "Net Score": f - d,
