@@ -181,6 +181,9 @@ with tab2:
                         classification = classify_kano(f, d)
                         all_classifications.append({
                             "Feature": feature["feature"],
+                            "Present": f,
+                            "Absent": d,
+                            "Net Score": f - d,
                             "Classification": classification
                         })
                 else:
@@ -196,14 +199,10 @@ with tab2:
             st.write("### Kano Evaluations")
             st.dataframe(kano_df)
 
-            # Summary Statistics
-            summary = kano_df.groupby("Feature").count()
-            st.write("### Summary Statistics")
-            st.dataframe(summary)
-
-            # Visualize Results
-            st.write("### Visualizations")
-            fig = px.box(kano_df, x="Feature", y="Classification", title="Feature Classification Frequency")
+            # Feature Classifications
+            st.write("### Feature Classifications")
+            classification_counts = kano_df.groupby(["Feature", "Classification"]).size().reset_index(name="Count")
+            fig = px.bar(classification_counts, x="Feature", y="Count", color="Classification", title="Feature Classification Frequency")
             st.plotly_chart(fig, use_container_width=True)
 
             # Download Button
