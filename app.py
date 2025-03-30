@@ -28,6 +28,7 @@ with st.sidebar:
 st.title('🤖 Kano Model Feature Evaluation')
 tab1, tab2 = st.tabs(["Setup", "Results"])
 
+# Setup Tab
 with tab1:
     st.header("Setup")
     if 'start_experiment' not in st.session_state:
@@ -36,8 +37,6 @@ with tab1:
         st.session_state.experiment_complete = False
     if 'results' not in st.session_state:
         st.session_state.results = None
-    if 'kano_responses' not in st.session_state:
-        st.session_state.kano_responses = []
 
     st.subheader("Product Name")
     product_name = st.text_input('Enter product name', key="product_name")
@@ -105,12 +104,6 @@ with tab1:
                             ],
                             temperature=0
                         )
-                        
-                        # Check if the response is empty or invalid
-                        if response.choices[0].message.content.strip() == "":
-                            st.warning(f"Empty response for persona: {row['Persona']}")
-                            continue  # Skip if response is empty
-                        
                         kano_responses.append(response.choices[0].message.content)
                         time.sleep(5)
                         break
@@ -123,6 +116,7 @@ with tab1:
             st.session_state.experiment_complete = True
             st.success("✅ Survey completed! View results in 'Results'.")
 
+# Results Tab
 with tab2:
     if not st.session_state.experiment_complete:
         st.info("Run the survey first.")
@@ -174,60 +168,22 @@ with tab2:
                 kano_df.index = kano_df.index + 1  # Fix indexing
                 st.dataframe(kano_df)
 
+                # Add Plotly diagram: Kano classification distribution
+                kano_class_count = kano_df['Kano Classification'].value_counts()
+                fig = px.pie(kano_class_count, names=kano_class_count.index, values=kano_class_count.values, 
+                             title="Kano Classification Distribution")
+                st.plotly_chart(fig)
+
+                # Add Plotly diagram: Feature Importance
+                importance_data = kano_df.groupby("Feature")["Kano Classification"].count().sort_values(ascending=False)
+                fig2 = px.bar(importance_data, x=importance_data.index, y=importance_data.values,
+                              title="Feature Importance (Number of Evaluations)")
+                st.plotly_chart(fig2)
+
+                # Add download button for the results
                 csv = kano_df.to_csv(index=False).encode('utf-8')
                 st.download_button("📥 Download Kano Results", data=csv, file_name="kano_results.csv", mime="text/csv")
             else:
                 st.warning("No valid Kano classifications found. Ensure survey responses are properly formatted.")
         else:
             st.warning("No Kano responses found. Please ensure the survey was completed successfully.")
-
-def handle_kano_response(feat_obj):
-    """
-    Process a single feature evaluation response and classify it according to Kano model.
-    """
-    try:
-        name = feat_obj.get("name", "").strip()
-        importance = feat_obj.get("importance", 0)
-
-        if not name or importance == 0:
-            return None  # Skip invalid feature entries
-
-        # Extract Kano classification
-        if "when_present" not in feat_obj or "when_absent" not in feat_obj:
-            return None  # Skip if missing 'when_present' or 'when_absent'
-
-        when_present = feat_obj.get("when_present", "").strip()
-        when_absent = feat_obj.get("when_absent", "").strip()
-
-        # Use classification rules to classify the feature
-        classification = classify_kano(when_present, when_absent)
-        
-        return {
-            "Feature": name,
-            "Present": when_present,
-            "Absent": when_absent,
-            "Kano Classification": classification
-        }
-
-    except Exception as e:
-        st.warning(f"Error processing feature: {e}")
-        return None
-
-def classify_kano(f, d):
-    """
-    Classify the Kano model based on the feature's responses.
-    """
-    rating_map = {
-        "1": 1, "2": 2, "3": 3, "4": 4, "5": 5,
-        "I like it": 1, "I expect it": 2, "I am indifferent": 3,
-        "I can live with it": 4, "I dislike it": 5
-    }
-
-    if f == 1 and d >= 4:
-        return "Excitement"
-    elif f == 2 and d == 5:
-        return "Must-Have"
-    elif f == 3 and d == 3:
-        return "Indifferent"
-    else:
-        return "Expected"
