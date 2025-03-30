@@ -234,8 +234,9 @@ with tab2:
         - Do not use markdown code blocks
         - Ensure all quotes are straight quotes (") not curly quotes
         - Do not include any line breaks within the values
+        """
         
-         # Collect responses
+        # Collect responses
         status_text.text("Collecting responses...")
         answerlist = []
         for i in range(profiles_df.shape[0]):
