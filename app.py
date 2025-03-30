@@ -13,8 +13,8 @@ from datetime import datetime
 
 # Set page config
 st.set_page_config(
-    page_title="Kano Model Feature Optimization",
-    page_icon="🔍",
+    page_title="Product Feature Optimization",
+    page_icon="🤖",
     layout="wide"
 )
 
@@ -53,7 +53,7 @@ with st.sidebar:
     """)
 
 # Main content
-st.title('🔍 Kano Model Feature Optimization')
+st.title('🤖 Product Feature Optimization')
 
 # Create tabs for different sections
 tab1, tab2, tab3 = st.tabs(["Setup", "Run Experiment", "Results"])
@@ -152,7 +152,7 @@ with tab2:
         ages = range(18, 66)
         experiences = range(1, 31)
         genders = ["male", "female", "not specified"]
-        customer_types = ["early adopter", "mainstream", "laggard"]
+        customer_types = ["price sensitive", "health concious", "convenience seeker","smart shopper"]
         
         # Generate personas
         profiles = []
