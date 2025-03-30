@@ -12,7 +12,7 @@ from groq import Groq
 from scipy import stats
 
 # -------------------- Streamlit Page Config --------------------
-st.set_page_config(page_title="Product Feature Optimization", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="Kano Model Feature Evaluation", page_icon="🤖", layout="wide")
 
 # -------------------- Sidebar Configuration --------------------
 with st.sidebar:
@@ -29,7 +29,7 @@ with st.sidebar:
     st.markdown("This tool evaluates features using a Kano Model approach.")
 
 # -------------------- Streamlit Tabs --------------------
-st.title('🤖 Product Feature Optimization')
+st.title('🤖 Kano Model Feature Evaluation')
 tab1, tab2 = st.tabs(["Setup", "Results"])
 
 # -------------------- Setup Tab --------------------
@@ -158,12 +158,15 @@ with tab2:
         for resp in st.session_state.results["responses"]:
             try:
                 parsed_json = json.loads(resp)
-                for feature in parsed_json["features"]:
-                    all_classifications.append({
-                        "Feature": feature["feature"],
-                        "Present": feature["when_present"],
-                        "Absent": feature["when_absent"]
-                    })
+                if "features" in parsed_json:
+                    for feature in parsed_json["features"]:
+                        all_classifications.append({
+                            "Feature": feature["feature"],
+                            "Present": feature["when_present"],
+                            "Absent": feature["when_absent"]
+                        })
+                else:
+                    st.warning(f"Invalid response format: {resp}")
             except Exception as e:
                 st.warning(f"Error parsing response: {e}")
 
