@@ -67,8 +67,6 @@ with tab1:
     # Initialize session state for input values if they don't exist
     if 'product_name' not in st.session_state:
         st.session_state.product_name = ""
-    if 'development_goals' not in st.session_state:
-        st.session_state.development_goals = ""
     if 'target_customers' not in st.session_state:
         st.session_state.target_customers = ""
     if 'features' not in st.session_state:
@@ -90,16 +88,6 @@ with tab1:
         key="product_name_input"
     )
     st.session_state.product_name = product_name
-    
-    # Development Goals
-    st.subheader("Development Goals")
-    development_goals = st.text_area(
-        'Specify your product development goals',
-        value=st.session_state.development_goals,
-        height=150,
-        key="development_goals_input"
-    )
-    st.session_state.development_goals = development_goals
     
     # Target Customers
     st.subheader("Target Customers")
@@ -136,7 +124,7 @@ with tab1:
     if st.button('🚀 Start Experiment', type="primary"):
         if not api_key:
             st.error("Please provide your Groq API key in the sidebar.")
-        elif not product_name or not development_goals or not target_customers or not features:
+        elif not product_name or not target_customers or not features:
             st.error("Please fill in all required fields.")
         else:
             st.session_state.start_experiment = True
@@ -253,7 +241,7 @@ with tab2:
         answerlist = []
         for i in range(profiles_df.shape[0]):
             progress_bar.progress((i + 1 + profiles_df.shape[0]) / (profiles_df.shape[0] * 3))
-            input_text = f"Product description: {product_name}; Question: {development_goals}; Person description: {profiles_df['Persona'].iloc[i]}"
+            input_text = f"Product description: {product_name}; Person description: {profiles_df['Persona'].iloc[i]}"
             
             response = client.chat.completions.create(
                 model="llama3-70b-8192",
