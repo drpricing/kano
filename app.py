@@ -241,7 +241,7 @@ with tab2:
         3. Read the description of the person who needs to answer this question.
         4. Make sure that you fully embrace the perspective of the person described and provide an answer to the question that aligns with their characteristics and motivations.
         5. Provide a response to the question based on the information provided.
-        ## Output Format:
+         ## Output Format:
         You MUST respond with a valid JSON object in the following exact format:
         {
             "Answer": "your answer here",
