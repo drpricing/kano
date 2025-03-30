@@ -42,13 +42,11 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### How does it work?")
     st.markdown("""
-    Step 1: Add your GROQ API Key (go to https://www.youtube.com/watch?v=_Deu9x5efvQ for instruction video)
+    Step 1: Add the necessary information for the experiment in the Setup tab
     
-    Step 2: Add the necessary information for the experiment in the Setup tab
+    Step 2: Check progress of the experiment in the Run Experiment tab
     
-    Step 3: Check progress of the experiment in the Run Experiment tab
-    
-    Step 4: View the results in the Results tab
+    Step 3: View the results in the Results tab
     """)
     st.markdown("---")
     st.markdown("### About")
