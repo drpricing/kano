@@ -149,10 +149,10 @@ with tab3:
         st.info("Please complete the survey first.")
     else:
         st.header("Results Analysis")
-        
+
         st.subheader("📊 Respondent Profiles")
         st.dataframe(st.session_state.results["personas"])
-        
+
         st.subheader("🔍 Raw Kano Responses")
         st.write(st.session_state.results["responses"])
 
@@ -172,16 +172,27 @@ with tab3:
                     d_num = rating_map.get(str(ratings["absent"]), None)
                     if None in [f_num, d_num]:
                         continue
-                    classifications.append({"Feature": feature, "Classification": "Excitement" if f_num == 1 and d_num >= 4 else "Expected"})
+                    classifications.append({
+                        "Feature": feature,
+                        "Classification": "Excitement" if f_num == 1 and d_num >= 4 else "Expected"
+                    })
             except Exception as e:
                 st.warning(f"Error parsing response: {e}")
                 continue
 
+        # **🛠 FIX: Ensure kano_df exists before using it**
         if classifications:
             kano_df = pd.DataFrame(classifications)
             st.subheader("✅ Kano Classification Results")
             st.dataframe(kano_df)
         else:
             st.error("No valid Kano classifications found. Check the raw responses above.")
+            kano_df = pd.DataFrame(columns=["Feature", "Classification"])  # **Empty DF to prevent NameError**
 
-        st.download_button("📥 Download Kano Results", data=kano_df.to_csv(index=False), file_name="kano_results.csv", mime="text/csv")
+        # **Ensure download button always has a valid DataFrame**
+        st.download_button(
+            "📥 Download Kano Results",
+            data=kano_df.to_csv(index=False),
+            file_name="kano_results.csv",
+            mime="text/csv"
+        )
