@@ -12,24 +12,24 @@ from groq import Groq
 from scipy import stats
 
 # -------------------- Streamlit Page Config --------------------
-st.set_page_config(page_title="Product Feature Optimization", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="Kano Model Feature Evaluation", page_icon="🤖", layout="wide")
 
 # -------------------- Sidebar Configuration --------------------
 with st.sidebar:
-    st.title("⚙️ Settings")
+    st.title("⚙️ Instructions")
     api_key = st.secrets["groq"]["api_key"]
     st.markdown("---")
     st.markdown("### How does it work?")
     st.markdown("""
-    1️⃣ Setup the survey in the **Setup** tab. 
-    2️⃣ Analyze results in **Results**.
+    1. Setup the survey in the **Setup** tab. 
+    2. Analyze results in **Results**.
     """)
     st.markdown("---")
     st.markdown("### About")
     st.markdown("This tool evaluates features using a Kano Model approach.")
 
 # -------------------- Streamlit Tabs --------------------
-st.title('🤖 Product Feature Optimization')
+st.title('🤖 Kano Model Feature Evaluation')
 tab1, tab2 = st.tabs(["Setup", "Results"])
 
 # -------------------- Setup Tab --------------------
@@ -153,21 +153,41 @@ with tab2:
         st.write("### Respondent Profiles")
         st.dataframe(st.session_state.results["profiles"])
 
-        # Show Raw Kano Responses
-        st.write("### Raw Kano Responses")
-        st.json(st.session_state.results["responses"])
+        # Parse Kano Responses with additional cleaning and error handling
+        rating_map = {
+            "1": 1, "2": 2, "3": 3, "4": 4, "5": 5,
+            "I like it": 1, "I expect it": 2, "I am indifferent": 3,
+            "I can live with it": 4, "I dislike it": 5
+        }
 
-        # Parse Kano Responses
+        def classify_kano(f, d):
+            if f == 1 and d >= 4:
+                return "Excitement"
+            elif f == 2 and d == 5:
+                return "Must-Have"
+            elif f == 3 and d == 3:
+                return "Indifferent"
+            else:
+                return "Expected"
+
         all_classifications = []
         for resp in st.session_state.results["responses"]:
             try:
                 parsed_json = json.loads(resp)
-                for feature in parsed_json["features"]:
-                    all_classifications.append({
-                        "Feature": feature["feature"],
-                        "Present": feature["when_present"],
-                        "Absent": feature["when_absent"]
-                    })
+                if "features" in parsed_json:
+                    for feature in parsed_json["features"]:
+                        f = rating_map.get(feature["when_present"], feature["when_present"])
+                        d = rating_map.get(feature["when_absent"], feature["when_absent"])
+                        classification = classify_kano(f, d)
+                        all_classifications.append({
+                            "Feature": feature["feature"],
+                            "Present": f,
+                            "Absent": d,
+                            "Net Score": f - d,
+                            "Classification": classification
+                        })
+                else:
+                    st.warning(f"Invalid response format: {resp}")
             except Exception as e:
                 st.warning(f"Error parsing response: {e}")
 
@@ -179,10 +199,11 @@ with tab2:
             st.write("### Kano Evaluations")
             st.dataframe(kano_df)
 
-            # Summary Statistics
-            summary = kano_df.groupby("Feature").count()
-            st.write("### Summary Statistics")
-            st.dataframe(summary)
+            # Feature Classifications
+            st.write("### Feature Classifications")
+            classification_counts = kano_df.groupby(["Feature", "Classification"]).size().reset_index(name="Count")
+            fig = px.bar(classification_counts, x="Feature", y="Count", color="Classification", title="Feature Classification Frequency")
+            st.plotly_chart(fig, use_container_width=True)
 
             # Download Button
             st.download_button("📥 Download Kano Results", data=kano_df.to_csv(index=False), file_name="kano_results.csv", mime="text/csv")
