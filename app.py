@@ -129,25 +129,50 @@ with tab2:
         st.write("### Kano Evaluations")
         kano_responses = st.session_state.results["responses"]
         
+        # Kano classification rules
+        rating_map = {
+            "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, 
+            "I like it": 1, "I expect it": 2, "I am indifferent": 3, 
+            "I can live with it": 4, "I dislike it": 5
+        }
+        
+        def classify_kano(f, d):
+            if f == 1 and d >= 4:
+                return "Excitement"
+            elif f == 2 and d == 5:
+                return "Must-Have"
+            elif f == 3 and d == 3:
+                return "Indifferent"
+            else:
+                return "Expected"
+
         classifications = []
         for resp in kano_responses:
             try:
                 parsed_json = json.loads(resp)
                 for feat_obj in parsed_json.get("features", []):
+                    f = rating_map.get(str(feat_obj["when_present"]), feat_obj["when_present"])
+                    d = rating_map.get(str(feat_obj["when_absent"]), feat_obj["when_absent"])
+                    classification = classify_kano(f, d)
+                    
                     classifications.append({
                         "Feature": feat_obj["feature"],
-                        "Present": feat_obj["when_present"],
-                        "Absent": feat_obj["when_absent"]
+                        "Present": f,
+                        "Absent": d,
+                        "Net Score": f - d,
+                        "Classification": classification
                     })
-            except Exception:
-                continue
+            except json.JSONDecodeError as e:
+                st.warning(f"JSON parsing error: {e}")
+            except KeyError as e:
+                st.warning(f"Missing expected key: {e}")
         
         if classifications:
-            dpkano_df = pd.DataFrame(classifications)
-            dpkano_df.index = dpkano_df.index + 1  # Fix indexing
-            st.dataframe(dpkano_df)
+            kano_df = pd.DataFrame(classifications)
+            kano_df.index = kano_df.index + 1  # Fix indexing
+            st.dataframe(kano_df)
             
-            csv = dpkano_df.to_csv(index=False).encode('utf-8')
+            csv = kano_df.to_csv(index=False).encode('utf-8')
             st.download_button("📥 Download Kano Results", data=csv, file_name="kano_results.csv", mime="text/csv")
         else:
-            st.warning("No valid Kano classifications found.")
+            st.warning("No valid Kano classifications found. Ensure survey responses are properly formatted.")
