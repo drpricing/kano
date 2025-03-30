@@ -129,7 +129,8 @@ with tab1:
             st.session_state.start_experiment = True
             st.session_state.experiment_complete = False
             st.session_state.results = None
-            st.experimental_rerun()
+            # Removed st.experimental_rerun() to avoid potential errors
+            st.info("Setup complete! Now, please navigate to the 'Run Experiment' tab.")
 
 # -------------------- Run Experiment Tab --------------------
 with tab2:
