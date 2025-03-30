@@ -153,17 +153,35 @@ with tab2:
         st.write("### Respondent Profiles")
         st.dataframe(st.session_state.results["profiles"])
 
-        # Parse Kano Responses
+        # Parse Kano Responses with additional cleaning and error handling
+        rating_map = {
+            "1": 1, "2": 2, "3": 3, "4": 4, "5": 5,
+            "I like it": 1, "I expect it": 2, "I am indifferent": 3,
+            "I can live with it": 4, "I dislike it": 5
+        }
+
+        def classify_kano(f, d):
+            if f == 1 and d >= 4:
+                return "Excitement"
+            elif f == 2 and d == 5:
+                return "Must-Have"
+            elif f == 3 and d == 3:
+                return "Indifferent"
+            else:
+                return "Expected"
+
         all_classifications = []
         for resp in st.session_state.results["responses"]:
             try:
                 parsed_json = json.loads(resp)
                 if "features" in parsed_json:
                     for feature in parsed_json["features"]:
+                        f = rating_map.get(feature["when_present"], feature["when_present"])
+                        d = rating_map.get(feature["when_absent"], feature["when_absent"])
+                        classification = classify_kano(f, d)
                         all_classifications.append({
                             "Feature": feature["feature"],
-                            "Present": feature["when_present"],
-                            "Absent": feature["when_absent"]
+                            "Classification": classification
                         })
                 else:
                     st.warning(f"Invalid response format: {resp}")
@@ -185,15 +203,8 @@ with tab2:
 
             # Visualize Results
             st.write("### Visualizations")
-            fig = px.box(kano_df, x="Feature", y="Present", title="Feature Ratings When Present")
+            fig = px.box(kano_df, x="Feature", y="Classification", title="Feature Classification Frequency")
             st.plotly_chart(fig, use_container_width=True)
-            fig = px.box(kano_df, x="Feature", y="Absent", title="Feature Ratings When Absent")
-            st.plotly_chart(fig, use_container_width=True)
-
-            # Histogram of Classification by Feature
-            st.write("### Histogram of Classification by Feature")
-            fig_hist = px.histogram(kano_df, x="Feature", title="Histogram of Classification by Feature")
-            st.plotly_chart(fig_hist, use_container_width=True)
 
             # Download Button
             st.download_button("📥 Download Kano Results", data=kano_df.to_csv(index=False), file_name="kano_results.csv", mime="text/csv")
