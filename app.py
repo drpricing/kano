@@ -190,5 +190,10 @@ with tab2:
             fig = px.box(kano_df, x="Feature", y="Absent", title="Feature Ratings When Absent")
             st.plotly_chart(fig, use_container_width=True)
 
+            # Histogram of Classification by Feature
+            st.write("### Histogram of Classification by Feature")
+            fig_hist = px.histogram(kano_df, x="Feature", title="Histogram of Classification by Feature")
+            st.plotly_chart(fig_hist, use_container_width=True)
+
             # Download Button
             st.download_button("📥 Download Kano Results", data=kano_df.to_csv(index=False), file_name="kano_results.csv", mime="text/csv")
