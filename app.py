@@ -70,7 +70,7 @@ with tab1:
     if 'features' not in st.session_state:
         st.session_state.features = ""
     if 'num_respondents' not in st.session_state:
-        st.session_state.num_respondents = 10
+        st.session_state.num_respondents = 8
     if 'start_experiment' not in st.session_state:
         st.session_state.start_experiment = False
     if 'experiment_complete' not in st.session_state:
@@ -150,9 +150,9 @@ with tab2:
         
         # Define ranges for synthetic persona attributes
         ages = range(18, 66)
-        experiences = range(1, 31)
+        #experiences = range(1, 31)
         genders = ["male", "female", "not specified"]
-        customer_types = ["price sensitive", "health concious", "convenience seeker","smart shopper"]
+        #customer_types = ["price sensitive", "health concious", "convenience seeker","smart shopper"]
         
         # Generate personas
         profiles = []
@@ -175,10 +175,10 @@ with tab2:
         for i in range(profiles_df.shape[0]):
             progress_bar.progress((i + 1) / (profiles_df.shape[0] * 3))
             age = profiles_df['Age'].iloc[i]
-            experience = profiles_df['Experience'].iloc[i]
+            #experience = profiles_df['Experience'].iloc[i]
             gender = profiles_df['Gender'].iloc[i]
             customer_type = profiles_df['Customer Type'].iloc[i]
-            input_text = f"Age: {age}; Experience: {experience}; Gender: {gender}; Customer Type: {customer_type}"
+            input_text = f"Age: {age}; Gender: {gender}; Customer Type: {customer_type}"
             
             response = client.chat.completions.create(
                 model="llama3-70b-8192",
