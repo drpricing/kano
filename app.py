@@ -109,7 +109,7 @@ with tab1:
                 4 = I can live with it  
                 5 = I dislike it  
 
-                Return answers as JSON:
+                Return answers as valid JSON:
                 {
                   "Feature1": {"present": <rating>, "absent": <rating>},
                   "Feature2": {"present": <rating>, "absent": <rating>}
@@ -152,7 +152,7 @@ with tab2:
         st.subheader("🔍 Raw Kano Responses")
         st.write(st.session_state.results["responses"])
 
-        # Process Kano responses
+        # Process Kano responses with additional cleaning and error handling
         rating_map = {
             "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, 
             "I like it": 1, "I expect it": 2, "I am indifferent": 3, 
@@ -169,10 +169,21 @@ with tab2:
                 return "Expected"
 
         kano_data = []
-        for response in st.session_state.results["responses"]:
+        for idx, response in enumerate(st.session_state.results["responses"]):
             try:
-                # Remove any markdown formatting and extra backticks
+                # Remove markdown formatting and extra whitespace
                 cleaned_response = response.replace("```", "").strip()
+                if not cleaned_response:
+                    st.warning(f"Response {idx+1} is empty.")
+                    continue
+
+                # Attempt to extract JSON starting from the first '{'
+                json_start = cleaned_response.find('{')
+                if json_start == -1:
+                    st.warning(f"Response {idx+1} does not contain '{{'.")
+                    continue
+                cleaned_response = cleaned_response[json_start:]
+                
                 data = json.loads(cleaned_response)
                 for feature in st.session_state.results["features"]:
                     if feature in data:
@@ -181,8 +192,8 @@ with tab2:
                         if f is not None and d is not None:
                             kano_data.append({"Feature": feature, "Classification": classify_kano(f, d)})
             except Exception as e:
-                st.warning(f"Error parsing response: {e}")
-        
+                st.warning(f"Error parsing response {idx+1}: {e}")
+
         if not kano_data:
             st.error("No valid Kano classifications found. Check the raw responses above.")
         else:
