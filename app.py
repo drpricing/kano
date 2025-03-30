@@ -149,8 +149,7 @@ with tab2:
         client = Groq(api_key=api_key)
         
         # Define ranges for synthetic persona attributes
-        ages = range(18, 66)
-        #experiences = range(1, 31)
+        ages = range(18, 78)
         genders = ["male", "female", "not specified"]
         #customer_types = ["price sensitive", "health concious", "convenience seeker","smart shopper"]
         
