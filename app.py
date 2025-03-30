@@ -13,7 +13,7 @@ from datetime import datetime
 
 # Set page config
 st.set_page_config(
-    page_title="dp. Kano Model Feature Optimization",
+    page_title="Kano Model Feature Optimization",
     page_icon="🔍",
     layout="wide"
 )
@@ -192,7 +192,164 @@ with tab2:
         profiles_df['Persona'] = personas
         
         # Prepare the Kano evaluation prompt for each synthetic respondent
-        # The prompt asks for ratings for each feature in two scenarios:
-        # when the feature is present and when it is missing.
-        # Use the scale: 1 = I like it, 2 = I expect it, 3 = I am indifferent, 4 = I can live with it, 5 = I dislike it.
-        feature_list = [f.strip() for f in st.session_state.features.splitlines() if f.strip() != \"\"]\n        \n        kano_instructions = f\"\"\"\nYou are a synthetic respondent. Based on the following persona, please evaluate each of the following features in two scenarios:\n1. When the feature is present\n2. When the feature is missing\n\nUse the following scale for each rating:\n1 = I like it\n2 = I expect it\n3 = I am indifferent\n4 = I can live with it\n5 = I dislike it\n\nReturn your answers as a valid JSON object with the following structure:\n{{\n  \"Feature1\": {{\"present\": <rating>, \"absent\": <rating>}},\n  \"Feature2\": {{\"present\": <rating>, \"absent\": <rating>}},\n  ...\n}}\n\nPersona Description:\n{{persona}}\n\nFeatures to Evaluate:\n{feature_list}\n\"\"\"\n\n        responses_list = []\n        for i in range(profiles_df.shape[0]):\n            progress_bar.progress((i + 1 + profiles_df.shape[0]) / (profiles_df.shape[0] * 3))\n            persona_text = profiles_df['Persona'].iloc[i]\n            prompt = kano_instructions.replace(\"{persona}\", persona_text)\n            \n            response = client.chat.completions.create(\n                model=\"llama3-70b-8192\",\n                messages=[\n                    {\"role\": \"system\", \"content\": \"You are to respond only with a JSON object as described.\"},\n                    {\"role\": \"user\", \"content\": prompt}\n                ],\n                temperature=0\n            )\n            responses_list.append(response.choices[0].message.content)\n            time.sleep(random.uniform(5, 10))\n        \n        # Store all responses in session state for later processing\n        # We expect responses_list to be a list of JSON strings\n        st.session_state.results = {\n            \"personas\": profiles_df,\n            \"responses\": responses_list,\n            \"features\": feature_list\n        }\n        st.session_state.experiment_complete = True\n        st.success(\"✅ Experiment completed successfully!\")\n        st.info(\"Please navigate to the 'Results' tab to view and analyze your data.\")\n\n# -------------------- Results Tab --------------------\nwith tab3:\n    if not st.session_state.experiment_complete:\n        st.info(\"Please run the experiment in the 'Run Experiment' tab first.\")\n    else:\n        st.header(\"Results Analysis\")\n        \n        # Define mapping for responses\n        rating_mapping = {\n            \"1\": 1,\n            \"2\": 2,\n            \"3\": 3,\n            \"4\": 4,\n            \"5\": 5,\n            \"I like it\": 1,\n            \"I expect it\": 2,\n            \"I am indifferent\": 3,\n            \"I can live with it\": 4,\n            \"I dislike it\": 5\n        }\n        \n        # Function to classify Kano based on numeric ratings\n        def classify_kano_numeric(f, d):\n            # f: rating when present; d: rating when absent\n            # Lower rating indicates a more positive perception.\n            if f == 1 and d >= 4:\n                return \"Excitement\"\n            elif f == 2 and d == 5:\n                return \"Must-Have\"\n            elif f == 3 and d == 3:\n                return \"Indifferent\"\n            elif (d - f) >= 2:\n                return \"Must-Have\"\n            elif f < d:\n                return \"Excitement\"\n            else:\n                return \"Expected\"\n        \n        # Parse the JSON responses from all respondents\n        all_classifications = []\n        for resp_str in st.session_state.results[\"responses\"]:\n            try:\n                # Clean and parse the JSON\n                cleaned = resp_str.replace('```', '').strip()\n                resp_json = json.loads(cleaned)\n            except Exception as e:\n                st.warning(f\"Error parsing a response: {e}\")\n                continue\n            \n            # For each feature in the response, extract ratings and classify\n            for feat in st.session_state.results[\"features\"]:\n                if feat in resp_json:\n                    rating_obj = resp_json[feat]\n                    f_rating = rating_obj.get(\"present\")\n                    d_rating = rating_obj.get(\"absent\")\n                    \n                    # Convert ratings to numeric values\n                    try:\n                        f_num = rating_mapping.get(str(f_rating).strip(), None)\n                        d_num = rating_mapping.get(str(d_rating).strip(), None)\n                    except Exception as e:\n                        st.warning(f\"Error converting ratings for feature {feat}: {e}\")\n                        continue\n                    if f_num is None or d_num is None:\n                        continue\n                    classification = classify_kano_numeric(f_num, d_num)\n                    all_classifications.append({\n                        \"Feature\": feat,\n                        \"Response Present\": f_rating,\n                        \"Response Absent\": d_rating,\n                        \"Classification\": classification\n                    })\n        \n        if not all_classifications:\n            st.error(\"No valid responses found. Please check the experiment responses.\")\n            st.stop()\n        \n        # Create DataFrame from classifications\n        kano_df = pd.DataFrame(all_classifications)\n        st.write(\"## Detailed Kano Evaluations\")\n        st.dataframe(kano_df)\n        \n        # Aggregate classifications per feature\n        summary = kano_df.groupby(\"Feature\")['Classification'].value_counts(normalize=True).mul(100).rename(\"Percentage\").reset_index()\n        st.write(\"## Kano Classification Summary (%)\")\n        st.dataframe(summary)\n        \n        # Create bar charts for each feature\n        for feat in st.session_state.results[\"features\"]:\n            feat_data = summary[summary['Feature'] == feat]\n            if feat_data.empty:\n                continue\n            fig = px.bar(feat_data, x='Classification', y='Percentage', title=f'Feature: {feat}', text='Percentage')\n            st.plotly_chart(fig, use_container_width=True)\n        \n        # Additionally, show download option for detailed results\n        st.download_button(\n            label=\"📥 Download Detailed Kano Results\",\n            data=kano_df.to_csv(index=False),\n            file_name=f\"kano_model_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv\",\n            mime=\"text/csv\"\n        )\n\n        # You can also perform further statistical analysis if needed\n        st.markdown(\"### Overall Classification Counts\")\n        overall_counts = kano_df['Classification'].value_counts()\n        st.bar_chart(overall_counts)"
+        feature_list = [f.strip() for f in st.session_state.features.splitlines() if f.strip() != ""]
+        
+        kano_instructions = f"""
+You are a synthetic respondent. Based on the following persona, please evaluate each of the following features in two scenarios:
+1. When the feature is present
+2. When the feature is missing
+
+Use the following scale for each rating:
+1 = I like it
+2 = I expect it
+3 = I am indifferent
+4 = I can live with it
+5 = I dislike it
+
+Return your answers as a valid JSON object with the following structure:
+{{
+  "Feature1": {{"present": <rating>, "absent": <rating>}},
+  "Feature2": {{"present": <rating>, "absent": <rating>}},
+  ...
+}}
+
+Persona Description:
+{{persona}}
+
+Features to Evaluate:
+{feature_list}
+"""
+        
+        responses_list = []
+        for i in range(profiles_df.shape[0]):
+            progress_bar.progress((i + 1 + profiles_df.shape[0]) / (profiles_df.shape[0] * 3))
+            persona_text = profiles_df['Persona'].iloc[i]
+            prompt = kano_instructions.replace("{persona}", persona_text)
+            
+            response = client.chat.completions.create(
+                model="llama3-70b-8192",
+                messages=[
+                    {"role": "system", "content": "You are to respond only with a JSON object as described."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0
+            )
+            responses_list.append(response.choices[0].message.content)
+            time.sleep(random.uniform(5, 10))
+        
+        # Store all responses in session state for later processing
+        st.session_state.results = {
+            "personas": profiles_df,
+            "responses": responses_list,
+            "features": feature_list
+        }
+        st.session_state.experiment_complete = True
+        st.success("✅ Experiment completed successfully!")
+        st.info("Please navigate to the 'Results' tab to view and analyze your data.")
+
+# -------------------- Results Tab --------------------
+with tab3:
+    if not st.session_state.experiment_complete:
+        st.info("Please run the experiment in the 'Run Experiment' tab first.")
+    else:
+        st.header("Results Analysis")
+        
+        # Define mapping for responses
+        rating_mapping = {
+            "1": 1,
+            "2": 2,
+            "3": 3,
+            "4": 4,
+            "5": 5,
+            "I like it": 1,
+            "I expect it": 2,
+            "I am indifferent": 3,
+            "I can live with it": 4,
+            "I dislike it": 5
+        }
+        
+        # Function to classify Kano based on numeric ratings
+        def classify_kano_numeric(f, d):
+            # f: rating when present; d: rating when absent
+            # Lower rating indicates a more positive perception.
+            if f == 1 and d >= 4:
+                return "Excitement"
+            elif f == 2 and d == 5:
+                return "Must-Have"
+            elif f == 3 and d == 3:
+                return "Indifferent"
+            elif (d - f) >= 2:
+                return "Must-Have"
+            elif f < d:
+                return "Excitement"
+            else:
+                return "Expected"
+        
+        # Parse the JSON responses from all respondents
+        all_classifications = []
+        for resp_str in st.session_state.results["responses"]:
+            try:
+                # Clean and parse the JSON
+                cleaned = resp_str.replace('```', '').strip()
+                resp_json = json.loads(cleaned)
+            except Exception as e:
+                st.warning(f"Error parsing a response: {e}")
+                continue
+            
+            # For each feature in the response, extract ratings and classify
+            for feat in st.session_state.results["features"]:
+                if feat in resp_json:
+                    rating_obj = resp_json[feat]
+                    f_rating = rating_obj.get("present")
+                    d_rating = rating_obj.get("absent")
+                    
+                    # Convert ratings to numeric values
+                    try:
+                        f_num = rating_mapping.get(str(f_rating).strip(), None)
+                        d_num = rating_mapping.get(str(d_rating).strip(), None)
+                    except Exception as e:
+                        st.warning(f"Error converting ratings for feature {feat}: {e}")
+                        continue
+                    if f_num is None or d_num is None:
+                        continue
+                    classification = classify_kano_numeric(f_num, d_num)
+                    all_classifications.append({
+                        "Feature": feat,
+                        "Response Present": f_rating,
+                        "Response Absent": d_rating,
+                        "Classification": classification
+                    })
+        
+        if not all_classifications:
+            st.error("No valid responses found. Please check the experiment responses.")
+            st.stop()
+        
+        # Create DataFrame from classifications
+        kano_df = pd.DataFrame(all_classifications)
+        st.write("## Detailed Kano Evaluations")
+        st.dataframe(kano_df)
+        
+        # Aggregate classifications per feature
+        summary = kano_df.groupby("Feature")['Classification'].value_counts(normalize=True).mul(100).rename("Percentage").reset_index()
+        st.write("## Kano Classification Summary (%)")
+        st.dataframe(summary)
+        
+        # Create bar charts for each feature
+        for feat in st.session_state.results["features"]:
+            feat_data = summary[summary['Feature'] == feat]
+            if feat_data.empty:
+                continue
+            fig = px.bar(feat_data, x='Classification', y='Percentage', title=f'Feature: {feat}', text='Percentage')
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Download option for detailed results
+        st.download_button(
+            label="📥 Download Detailed Kano Results",
+            data=kano_df.to_csv(index=False),
+            file_name=f"kano_model_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv"
+        )
+        
+        st.markdown("### Overall Classification Counts")
+        overall_counts = kano_df['Classification'].value_counts()
+        st.bar_chart(overall_counts)
