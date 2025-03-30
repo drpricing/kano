@@ -234,14 +234,13 @@ with tab2:
         - Do not use markdown code blocks
         - Ensure all quotes are straight quotes (") not curly quotes
         - Do not include any line breaks within the values
-        """
         
-        # Collect responses
+         # Collect responses
         status_text.text("Collecting responses...")
         answerlist = []
         for i in range(profiles_df.shape[0]):
             progress_bar.progress((i + 1 + profiles_df.shape[0]) / (profiles_df.shape[0] * 3))
-            input_text = f"Product description: {product_name}; Person description: {profiles_df['Persona'].iloc[i]}"
+            input_text = f"Product description: {product_name}; Features: {features}; Person description: {profiles_df['Persona'].iloc[i]}"
             
             response = client.chat.completions.create(
                 model="llama3-70b-8192",
