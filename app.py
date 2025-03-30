@@ -105,6 +105,12 @@ with tab1:
                             ],
                             temperature=0
                         )
+                        
+                        # Check if the response is empty or invalid
+                        if response.choices[0].message.content.strip() == "":
+                            st.warning(f"Empty response for persona: {row['Persona']}")
+                            continue  # Skip if response is empty
+                        
                         kano_responses.append(response.choices[0].message.content)
                         time.sleep(5)
                         break
@@ -136,12 +142,17 @@ with tab2:
 
             for resp in kano_responses:
                 try:
-                    parsed_json = json.loads(resp)
-
                     # Debugging output
                     if 'debug_response_shown' not in st.session_state:
-                        st.write("📌 Debug: Example API Response", parsed_json)
+                        st.write("📌 Debug: Example API Response", resp)
                         st.session_state.debug_response_shown = True
+
+                    # Check if response is not empty
+                    if not resp.strip():
+                        st.warning("Skipping empty response.")
+                        continue  # Skip if the response is empty
+                    
+                    parsed_json = json.loads(resp)
 
                     if "features" not in parsed_json:
                         st.warning(f"Missing 'features' in response: {parsed_json}")
