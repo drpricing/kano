@@ -16,13 +16,13 @@ st.set_page_config(page_title="Product Feature Optimization", page_icon="🤖", 
 
 # -------------------- Sidebar Configuration --------------------
 with st.sidebar:
-    st.title("⚙️ Settings")
+    st.title("⚙️ Instructions")
     api_key = st.secrets["groq"]["api_key"]
     st.markdown("---")
     st.markdown("### How does it work?")
     st.markdown("""
-    1️⃣ Setup the survey in the **Setup** tab. 
-    2️⃣ Analyze results in **Results**.
+    1. Setup the survey in the **Setup** tab. 
+    2. Analyze results in **Results**.
     """)
     st.markdown("---")
     st.markdown("### About")
@@ -153,10 +153,6 @@ with tab2:
         st.write("### Respondent Profiles")
         st.dataframe(st.session_state.results["profiles"])
 
-        # Show Raw Kano Responses
-        st.write("### Raw Kano Responses")
-        st.json(st.session_state.results["responses"])
-
         # Parse Kano Responses
         all_classifications = []
         for resp in st.session_state.results["responses"]:
@@ -183,6 +179,13 @@ with tab2:
             summary = kano_df.groupby("Feature").count()
             st.write("### Summary Statistics")
             st.dataframe(summary)
+
+            # Visualize Results
+            st.write("### Visualizations")
+            fig = px.box(kano_df, x="Feature", y="Present", title="Feature Ratings When Present")
+            st.plotly_chart(fig, use_container_width=True)
+            fig = px.box(kano_df, x="Feature", y="Absent", title="Feature Ratings When Absent")
+            st.plotly_chart(fig, use_container_width=True)
 
             # Download Button
             st.download_button("📥 Download Kano Results", data=kano_df.to_csv(index=False), file_name="kano_results.csv", mime="text/csv")
