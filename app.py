@@ -13,7 +13,7 @@ from datetime import datetime
 
 # Set page config
 st.set_page_config(
-    page_title="drp. Kano Model Feature Optimization",
+    page_title="dp. Kano Model Feature Optimization",
     page_icon="🔍",
     layout="wide"
 )
