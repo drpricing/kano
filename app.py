@@ -20,11 +20,11 @@ with st.sidebar:
 st.title('🤖 Product Feature Optimization')
 
 # Create tabs for different sections
-tab1, tab2 = st.tabs(["Setup", "Results"])
+tab1, tab2 = st.tabs(["Setup", "Survey Synthetic Respondents"])
 
 # -------------------- Setup Tab --------------------
 with tab1:
-    st.header("Experiment Setup")
+    st.header("Setup")
     
     # Initialize session state
     session_defaults = {
@@ -42,7 +42,7 @@ with tab1:
     st.session_state.num_respondents = st.number_input("Number of respondents", min_value=1, max_value=100, value=st.session_state.num_respondents)
 
     # Start button
-    if st.button('🚀 Start Experiment', type="primary"):
+    if st.button('🚀 Start Survey', type="primary"):
         if not api_key:
             st.error("Please provide your Groq API key in the sidebar.")
         elif not st.session_state.product_name or not st.session_state.target_customers or not st.session_state.features.strip():
@@ -51,7 +51,7 @@ with tab1:
             st.session_state.experiment_complete = False
             st.session_state.results = None
 
-            st.info("Running experiment... Please wait.")
+            st.info("Running survey... Please wait.")
             progress_bar = st.progress(0)
 
             client = Groq(api_key=api_key)
@@ -134,12 +134,12 @@ with tab1:
 
             st.session_state.results = {"personas": profiles_df, "responses": responses_list, "features": feature_list}
             st.session_state.experiment_complete = True
-            st.success("✅ Experiment completed! Go to the 'Results' tab.")
+            st.success("✅ Survey completed! Go to the 'Survey Synthetic Respondents' tab.")
 
 # -------------------- Results Tab --------------------
 with tab2:
     if not st.session_state.experiment_complete:
-        st.info("Run the experiment first in the 'Setup' tab.")
+        st.info("Run the survey first in the 'Setup' tab.")
     else:
         st.header("Results Analysis")
 
