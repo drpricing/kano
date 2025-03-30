@@ -6,15 +6,12 @@ import json
 import time
 import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go
 from datetime import datetime
 from groq import Groq
 from scipy import stats
 
-# -------------------- Streamlit Page Config --------------------
 st.set_page_config(page_title="Kano Model Feature Evaluation", page_icon="🤖", layout="wide")
 
-# -------------------- Sidebar Configuration --------------------
 with st.sidebar:
     st.title("⚙️ Instructions")
     api_key = st.secrets["groq"]["api_key"]
@@ -28,11 +25,9 @@ with st.sidebar:
     st.markdown("### About")
     st.markdown("This tool evaluates features using a Kano Model approach.")
 
-# -------------------- Streamlit Tabs --------------------
 st.title('🤖 Kano Model Feature Evaluation')
 tab1, tab2 = st.tabs(["Setup", "Results"])
 
-# -------------------- Setup Tab --------------------
 with tab1:
     st.header("Setup")
     if 'start_experiment' not in st.session_state:
@@ -42,21 +37,15 @@ with tab1:
     if 'results' not in st.session_state:
         st.session_state.results = None
 
-    # Product Information
     st.subheader("Product Name")
     product_name = st.text_input('Enter product name', key="product_name")
     st.subheader("Target Customers")
     target_customers = st.text_area('Describe your target customers', height=150, key="target_customers")
-
-    # Features
     st.subheader("Features")
     features_input = st.text_area('List features (one per line)', height=150, key="features")
-
-    # Number of Respondents
     st.subheader("Number of Synthetic Respondents")
     num_respondents = st.number_input('Number of respondents', min_value=1, max_value=100, value=8, key="num_respondents")
-
-    # Start Experiment
+    
     if st.button('🚀 Start Survey', type="primary"):
         if not api_key:
             st.error("Please provide your Groq API key in the sidebar.")
@@ -66,32 +55,20 @@ with tab1:
             st.session_state.start_experiment = True
             st.session_state.experiment_complete = False
             st.session_state.results = None
-
+            
             st.header("Survey Synthetic Respondents")
             progress_bar = st.progress(0)
-
-            # Initialize Groq Client
             client = Groq(api_key=api_key)
-
-            # Define respondent attributes
             ages = range(18, 78)
             genders = ["Male", "Female", "Unknown"]
-
-            # Generate respondent profiles
-            profiles = []
-            for _ in range(st.session_state.num_respondents):
-                profiles.append({"Age": random.choice(ages), "Gender": random.choice(genders)})
+            profiles = [{"Age": random.choice(ages), "Gender": random.choice(genders)} for _ in range(num_respondents)]
             profiles_df = pd.DataFrame(profiles)
-
-            # API Rate Limit Handling
             MAX_RETRIES = 3
             RETRY_DELAY = 10
-
-            # Generate Personas
+            
             personas = []
             for i, row in profiles_df.iterrows():
-                progress_bar.progress((i + 1) / (len(profiles_df) * 3))
-                input_text = f"Age: {row['Age']}; Gender: {row['Gender']}"
+                progress_bar.progress((i + 1) / (num_respondents * 2))
                 retries = 0
                 while retries < MAX_RETRIES:
                     try:
@@ -99,7 +76,7 @@ with tab1:
                             model="llama3-70b-8192",
                             messages=[
                                 {"role": "system", "content": "Create a customer persona based on:"},
-                                {"role": "user", "content": input_text}
+                                {"role": "user", "content": f"Age: {row['Age']}; Gender: {row['Gender']}"}
                             ],
                             temperature=0
                         )
@@ -108,43 +85,13 @@ with tab1:
                         break
                     except Exception:
                         retries += 1
-                        st.warning(f"Rate limit hit. Retrying ({retries}/{MAX_RETRIES}) in {RETRY_DELAY} seconds...")
                         time.sleep(RETRY_DELAY)
             profiles_df["Persona"] = personas
-
-            # Kano Model Evaluation
+            
             features = [f.strip() for f in features_input.splitlines() if f.strip()]
-            # Updated prompt: explicitly require a JSON object with key 'features'
-            kano_prompt = f"""
-You are a synthetic respondent. Based on the persona below, evaluate each feature.
-For each feature, provide two ratings (on a 1-5 scale):
- - 'when_present': rating when the feature is present
- - 'when_absent': rating when the feature is absent
-
-Use the scale:
-1 = I like it
-2 = I expect it
-3 = I am indifferent
-4 = I can live with it
-5 = I dislike it
-
-Return your answer as a JSON object with the following format:
-{{
-  "features": [
-      {{"feature": "<Feature Name>", "when_present": <rating>, "when_absent": <rating>}},
-      ... (one object per feature)
-  ]
-}}
-
-Persona: {{}}
-"""
             kano_responses = []
             for i, row in profiles_df.iterrows():
-                progress_bar.progress((i + 1 + len(profiles_df)) / (len(profiles_df) * 3))
-                # Replace the placeholder with the current persona
-                prompt = kano_prompt.replace("{}", row["Persona"], 1)
-                # Also, include the features list in the prompt
-                prompt += f"\nFeatures: {features}"
+                progress_bar.progress((i + 1 + num_respondents) / (num_respondents * 2))
                 retries = 0
                 while retries < MAX_RETRIES:
                     try:
@@ -152,7 +99,7 @@ Persona: {{}}
                             model="llama3-70b-8192",
                             messages=[
                                 {"role": "system", "content": "Only return a JSON object as described."},
-                                {"role": "user", "content": prompt}
+                                {"role": "user", "content": f"Evaluate features based on: {row['Persona']}"}
                             ],
                             temperature=0
                         )
@@ -161,79 +108,46 @@ Persona: {{}}
                         break
                     except Exception:
                         retries += 1
-                        st.warning(f"Rate limit hit. Retrying ({retries}/{MAX_RETRIES}) in {RETRY_DELAY} seconds...")
                         time.sleep(RETRY_DELAY)
+            
+            progress_bar.progress(1.0)  # Ensure it reaches 100%
             st.session_state.results = {"profiles": profiles_df, "responses": kano_responses, "features": features}
             st.session_state.experiment_complete = True
             st.success("✅ Survey completed! View results in 'Results'.")
 
-# -------------------- Results Tab --------------------
 with tab2:
     if not st.session_state.experiment_complete:
         st.info("Run the survey first.")
     else:
         st.header("Results")
-
-        # Show Respondent Profiles
+        
         st.write("### Respondent Profiles")
-        st.dataframe(st.session_state.results["profiles"])
-
-        # Parse Kano Responses with additional cleaning and error handling
-        rating_map = {
-            "1": 1, "2": 2, "3": 3, "4": 4, "5": 5,
-            "I like it": 1, "I expect it": 2, "I am indifferent": 3,
-            "I can live with it": 4, "I dislike it": 5
-        }
-
-        def classify_kano(f, d):
-            if f == 1 and d >= 4:
-                return "Excitement"
-            elif f == 2 and d == 5:
-                return "Must-Have"
-            elif f == 3 and d == 3:
-                return "Indifferent"
-            else:
-                return "Expected"
-
-        all_classifications = []
-        for resp in st.session_state.results["responses"]:
+        profiles_df = st.session_state.results["profiles"].copy()
+        profiles_df.index = profiles_df.index + 1  # Fix indexing to start from 1
+        st.dataframe(profiles_df)
+        
+        st.write("### Kano Evaluations")
+        kano_responses = st.session_state.results["responses"]
+        
+        classifications = []
+        for resp in kano_responses:
             try:
                 parsed_json = json.loads(resp)
-                if "features" in parsed_json:
-                    for feat_obj in parsed_json["features"]:
-                        # Force ratings to string and then map
-                        f_raw = str(feat_obj.get("when_present", "")).strip()
-                        d_raw = str(feat_obj.get("when_absent", "")).strip()
-                        f = rating_map.get(f_raw, None)
-                        d = rating_map.get(d_raw, None)
-                        if f is None or d is None:
-                            continue
-                        classification = classify_kano(f, d)
-                        all_classifications.append({
-                            "Feature": feat_obj.get("feature", "Unknown"),
-                            "Present": f,
-                            "Absent": d,
-                            "Net Score": f - d,
-                            "Classification": classification
-                        })
-                else:
-                    st.warning(f"Invalid response format: {resp}")
-            except Exception as e:
-                st.warning(f"Error parsing response: {e}")
-
-        if not all_classifications:
-            st.error("No valid Kano classifications found.")
+                for feat_obj in parsed_json.get("features", []):
+                    classifications.append({
+                        "Feature": feat_obj["feature"],
+                        "Present": feat_obj["when_present"],
+                        "Absent": feat_obj["when_absent"]
+                    })
+            except Exception:
+                continue
+        
+        if classifications:
+            dpkano_df = pd.DataFrame(classifications)
+            dpkano_df.index = dpkano_df.index + 1  # Fix indexing
+            st.dataframe(dpkano_df)
+            
+            csv = dpkano_df.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Download Kano Results", data=csv, file_name="kano_results.csv", mime="text/csv")
         else:
-            kano_df = pd.DataFrame(all_classifications)
-            kano_df.index += 1
-            st.write("### Kano Evaluations")
-            st.dataframe(kano_df)
-
-            # Feature Classifications
-            st.write("### Feature Classifications")
-            classification_counts = kano_df.groupby(["Feature", "Classification"]).size().reset_index(name="Count")
-            fig = px.bar(classification_counts, x="Feature", y="Count", color="Classification", title="Feature Classification Frequency")
-            st.plotly_chart(fig, use_container_width=True)
-
-            # Download Button
-            st.download_button("📥 Download Kano Results", data=kano_df.to_csv(index=False), file_name="kano_results.csv", mime="text/csv")
+            st.warning("No valid Kano classifications found.")
