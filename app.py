@@ -37,11 +37,7 @@ st.markdown("""
 # Sidebar for API key and settings
 with st.sidebar:
     st.title("⚙️ Settings")
-    api_key = st.text_input(
-        'Groq API Key',
-        type="password",
-        help="Get your API key from: https://console.groq.com/keys"
-    )
+    api_key = st.secrets["groq"]["api_key"]
     
     st.markdown("---")
     st.markdown("### How does it work?")
@@ -164,7 +160,6 @@ with tab2:
         status_text = st.empty()
         
         # Initialize Groq client
-        os.environ["GROQ_API_KEY"] = api_key
         client = Groq(api_key=api_key)
         
         # Define the ranges and options
@@ -241,7 +236,7 @@ with tab2:
         3. Read the description of the person who needs to answer this question.
         4. Make sure that you fully embrace the perspective of the person described and provide an answer to the question that aligns with their characteristics and motivations.
         5. Provide a response to the question based on the information provided.
-         ## Output Format:
+        ## Output Format:
         You MUST respond with a valid JSON object in the following exact format:
         {
             "Answer": "your answer here",
