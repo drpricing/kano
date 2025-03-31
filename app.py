@@ -18,7 +18,10 @@ with st.sidebar:
     api_key = st.secrets["groq"]["api_key"]
     st.markdown("---")
     st.markdown("### How does it work?")
-    st.markdown("""1. Setup the survey in the **Setup** tab. 2. Analyze results in **Results**.""")
+    st.markdown("""
+    1. Setup the survey in the **Setup** tab. 
+    2. Analyze results in **Results**.
+    """)
     st.markdown("---")
     st.markdown("### About")
     st.markdown("This tool evaluates features using a Kano Model approach.")
@@ -105,7 +108,19 @@ with tab1:
                         response = client.chat.completions.create(
                             model="llama3-70b-8192",
                             messages=[
-                                {"role": "system", "content": "Return a JSON object evaluating each feature with ratings (1-5) for both functional (feature present) and dysfunctional (feature absent)."},
+                                {"role": "system", "content": """
+                                    You are tasked with evaluating product features using a Kano model. For each feature, 
+                                    please rate it on a scale from 1 to 5, based on the following meanings:
+                                    - 1: "I like it"
+                                    - 2: "I expect it"
+                                    - 3: "I am indifferent"
+                                    - 4: "I can live with it"
+                                    - 5: "I dislike it"
+                                    For each feature, you need to provide two ratings: one for the functional condition (feature present)
+                                    and one for the dysfunctional condition (feature absent).
+                                    Please return the ratings in the following format:
+                                    {"feature_name": {"functional": {"rating": X, "comment": "description"}, "dysfunctional": {"rating": X, "comment": "description"}}}
+                                """},
                                 {"role": "user", "content": f"Persona: {row['Persona']} | Features: {features}"}
                             ],
                             temperature=0
@@ -138,7 +153,9 @@ with tab2:
         kano_responses = st.session_state.results["responses"]
 
         rating_map = {
-            1: "I like it", 2: "I expect it", 3: "I am indifferent", 4: "I can live with it", 5: "I dislike it"
+            "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, 
+            "I like it": 1, "I expect it": 2, "I am indifferent": 3, 
+            "I can live with it": 4, "I dislike it": 5
         }
 
         def classify_kano(f, d):
@@ -166,24 +183,22 @@ with tab2:
                 
                 parsed_json = json.loads(match.group())
 
-                if not isinstance(parsed_json, dict) or 'features' not in parsed_json:
+                if "features" not in parsed_json or not isinstance(parsed_json["features"], list):
                     st.warning(f"⚠️ Unexpected response format at index {i+1}: {parsed_json}")
                     continue  
 
-                for feat_name, feat_obj in parsed_json["features"].items():
-                    if "functional" in feat_obj and "dysfunctional" in feat_obj:
-                        f_score = feat_obj["functional"].get("rating")
-                        d_score = feat_obj["dysfunctional"].get("rating")
+                for feat_obj in parsed_json["features"]:
+                    if "feature" in feat_obj and "functional" in feat_obj and "dysfunctional" in feat_obj:
+                        f_score = rating_map.get(str(feat_obj["functional"]["rating"]).strip(), None)
+                        d_score = rating_map.get(str(feat_obj["dysfunctional"]["rating"]).strip(), None)
 
                         if f_score is None or d_score is None:
-                            st.warning(f"⚠️ Missing rating at index {i+1} for feature {feat_name}. Skipping.")
+                            st.warning(f"⚠️ Invalid scores at index {i+1}. Skipping.")
                             continue
 
                         category = classify_kano(f_score, d_score)
                         classifications.append({
-                            "Feature": feat_name,
-                            "Functional Rating": rating_map[f_score],
-                            "Dysfunctional Rating": rating_map[d_score],
+                            "Feature": feat_obj["feature"],
                             "Kano Classification": category
                         })
 
