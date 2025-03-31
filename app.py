@@ -13,7 +13,7 @@ st.set_page_config(page_title="Kano Model Feature Evaluation", page_icon="🤖",
 
 # Sidebar
 with st.sidebar:
-    st.title("⚙️ Instructions")
+    st.title("⚙️ A Dr. Pricing App")
     api_key = st.secrets["groq"]["api_key"]
     st.markdown("---")
     st.markdown("### How does it work?")
@@ -82,7 +82,7 @@ with tab1:
             RETRY_DELAY = 10
             personas = []
 
-            # Generate hidden persona descriptions (for backend use only)
+            # Generate hidden persona descriptions (backend only)
             for i, row in profiles_df.iterrows():
                 progress_bar.progress((i + 1) / (num_respondents * 2))
                 retries = 0
@@ -102,14 +102,13 @@ with tab1:
                     except Exception:
                         retries += 1
                         time.sleep(RETRY_DELAY)
-            profiles_df["Persona"] = personas  # stored in backend; not shown to the user
+            profiles_df["Persona"] = personas  # Stored in backend; not shown to user
 
             # Prepare feature list
             features = [f.strip() for f in features_input.splitlines() if f.strip()]
             kano_responses = []
 
-            # Fetch Kano ratings for each synthetic respondent
-            # The prompt now explicitly instructs the model to return ONLY the ratings in JSON format.
+            # Fetch Kano ratings for each synthetic respondent (ratings only)
             for i, row in profiles_df.iterrows():
                 progress_bar.progress((i + 1 + num_respondents) / (num_respondents * 2))
                 retries = 0
@@ -124,11 +123,11 @@ with tab1:
                                     - Functional condition (feature present)
                                     - Dysfunctional condition (feature absent)
                                     Use a scale of 1 to 5 where:
-                                      1: I like it
-                                      2: I expect it
-                                      3: I am indifferent
-                                      4: I can live with it
-                                      5: I dislike it
+                                      1: I like it,
+                                      2: I expect it,
+                                      3: I am indifferent,
+                                      4: I can live with it,
+                                      5: I dislike it.
                                     Return ONLY the ratings in the following JSON format:
                                     {"feature_name": {"functional": {"rating": X}, "dysfunctional": {"rating": X}}}
                                 """},
@@ -153,7 +152,7 @@ with tab1:
 # -----------------------------
 def clean_and_parse_json(raw_response):
     """Extracts and parses the first JSON object in the response (ratings only)."""
-    st.write(f"Raw response: {raw_response}")  # Debug output
+    # (Debug output removed)
     if not raw_response.strip():
         st.warning("⚠️ Empty response detected. Skipping this entry.")
         return None
@@ -195,7 +194,6 @@ with tab2:
             rating_map = {"1": 1, "2": 2, "3": 3, "4": 4, "5": 5}
 
             def classify_kano(f, d):
-                # The classification logic (can be adjusted as needed)
                 if f == 1 and d >= 4:
                     return "Excitement"
                 elif f == 2 and d == 5:
@@ -206,13 +204,11 @@ with tab2:
                     return "Expected"
 
             classifications = []
-            # Process each synthetic respondent's response
             for i, resp in enumerate(kano_responses):
                 parsed_json = clean_and_parse_json(resp)
                 if parsed_json is None:
                     st.warning(f"⚠️ Invalid JSON response at index {i+1}. Skipping.")
                     continue
-                # Expect parsed_json to be a dict with ratings
                 for feature, data in parsed_json.items():
                     if "functional" in data and "dysfunctional" in data:
                         try:
@@ -221,7 +217,7 @@ with tab2:
                         except (ValueError, KeyError):
                             st.warning(f"⚠️ Unable to parse ratings for feature {feature} at index {i+1}. Skipping.")
                             continue
-                        net_score = f_score - d_score  # Compute net Kano score
+                        net_score = f_score - d_score
                         category = classify_kano(f_score, d_score)
                         classifications.append({
                             "Feature": feature,
@@ -235,28 +231,28 @@ with tab2:
 
             if classifications:
                 kano_df = pd.DataFrame(classifications)
-                kano_df.index = range(1, len(kano_df)+1)  # Start numbering at 1
+                kano_df.index = range(1, len(kano_df)+1)  # Numbering starts at 1
                 st.write("#### Kano Classification Table")
                 st.dataframe(kano_df)
                 
-                # Explanation of scales and classification rules
                 st.markdown("""
-                **Scale Explanation:**
-                - **1:** I like it  
-                - **2:** I expect it  
-                - **3:** I am indifferent  
-                - **4:** I can live with it  
-                - **5:** I dislike it  
-
-                **Classification Rules:**
+                **Scale Explanation:**  
+                Ratings are based on a scale from 1 to 5:  
+                - 1: I like it  
+                - 2: I expect it  
+                - 3: I am indifferent  
+                - 4: I can live with it  
+                - 5: I dislike it  
+                
+                **Classification Rules:**  
                 - **Excitement:** Functional rating of 1 and Dysfunctional rating ≥ 4  
                 - **Must-Have:** Functional rating of 2 and Dysfunctional rating of 5  
-                - **Indifferent:** Functional and Dysfunctional ratings both equal to 3  
+                - **Indifferent:** Both ratings equal 3  
                 - **Expected:** Any other combination  
-                **Net Kano Score** is calculated as *Rating (Present) - Rating (Missing)*.
+                The **Net Kano Score** is computed as *Rating (Present) - Rating (Missing)*.
                 """)
                 
-                # Generate a diagram: frequency of classification per feature
+                # Generate diagram: frequency of each classification per feature
                 freq_df = kano_df.groupby(["Feature", "Kano Classification"]).size().reset_index(name="Count")
                 fig = px.bar(freq_df, x="Feature", y="Count", color="Kano Classification",
                              barmode="group", title="Frequency of Kano Classifications per Feature")
