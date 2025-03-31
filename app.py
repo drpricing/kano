@@ -3,7 +3,6 @@ import pandas as pd
 import streamlit as st
 import json
 import time
-import re
 import numpy as np
 import plotly.express as px
 from datetime import datetime
@@ -19,17 +18,32 @@ with st.sidebar:
     st.markdown("### How does it work?")
     st.markdown(
         """
-        1. In the **Setup** tab, you enter your product details and feature list.
-        2. Synthetic respondents (with hidden persona details) evaluate the features.
-        3. In **Results**, you see Kano evaluation statistics, classifications in tables and diagrams.
+        1. In the **Setup** tab, enter product details and features.
+        2. Synthetic respondents evaluate the features.
+        3. In **Results**, view Kano classifications, statistics, and a stacked bar diagram.
         """
     )
     st.markdown("---")
     st.markdown("### About")
-    st.markdown("This tool uses a Kano Model approach to evaluate product features.")
+    st.markdown("This tool evaluates product features using the Kano Model.")
 
-st.title('🤖 Kano Model Feature Evaluation')
+st.title("🤖 Kano Model Feature Evaluation")
 tab1, tab2 = st.tabs(["Setup", "Results"])
+
+# Helper function to extract JSON from a text response
+def extract_json(text):
+    """
+    Extracts the first JSON object from a string.
+    """
+    json_start = text.find("{")
+    json_end = text.rfind("}") + 1
+    if json_start == -1 or json_end == -1:
+        return None
+    json_str = text[json_start:json_end]
+    try:
+        return json.loads(json_str)
+    except json.JSONDecodeError:
+        return None
 
 # -----------------------------
 # TAB 1: Setup
@@ -37,7 +51,6 @@ tab1, tab2 = st.tabs(["Setup", "Results"])
 with tab1:
     st.header("Setup")
     
-    # Initialize session state if not present
     if 'start_experiment' not in st.session_state:
         st.session_state.start_experiment = False
     if 'experiment_complete' not in st.session_state:
@@ -45,17 +58,9 @@ with tab1:
     if 'results' not in st.session_state:
         st.session_state.results = None
 
-    # Input fields
-    st.subheader("Product Name")
     product_name = st.text_input('Enter product name', key="product_name")
-    
-    st.subheader("Target Customers")
     target_customers = st.text_area('Describe your target customers', height=150, key="target_customers")
-    
-    st.subheader("Features")
     features_input = st.text_area('List features (one per line)', height=150, key="features")
-    
-    st.subheader("Number of Synthetic Respondents")
     num_respondents = st.number_input('Number of respondents', min_value=1, max_value=100, value=8, key="num_respondents")
     
     if st.button('🚀 Start Survey', type="primary"):
@@ -67,133 +72,102 @@ with tab1:
             st.session_state.start_experiment = True
             st.session_state.experiment_complete = False
             st.session_state.results = None
-
+            
             st.header("Survey Synthetic Respondents")
             progress_bar = st.progress(0)
             client = Groq(api_key=api_key)
             
-            # Generate synthetic respondent profiles (with hidden personas)
-            profiles = []
-            personas = []  # To store the persona text separately if needed
-            
             MAX_RETRIES = 3
             RETRY_DELAY = 10
+            profiles = []
             
-            # For each synthetic respondent, generate Age, Gender, and Persona aligned with target_customers
+            # Generate synthetic respondent personas
             for i in range(num_respondents):
                 progress_bar.progress((i + 1) / (num_respondents * 2))
                 retries = 0
                 while retries < MAX_RETRIES:
                     try:
-                        profile_resp = client.chat.completions.create(
-                            model="llama3-70b-8192",
-                            messages=[
-                                {
-                                    "role": "system",
-                                    "content": "Generate a synthetic customer profile based on the provided target customer description."
-                                },
-                                {
-                                    "role": "user",
-                                    "content": (
-                                        f"Target Customers: {target_customers}\n"
-                                        "Please provide a complete customer profile in JSON format with the keys:\n"
-                                        "- Age (an integer)\n"
-                                        "- Gender (choose from 'Male', 'Female', or 'Unknown')\n"
-                                        "- Persona (a brief description)"
-                                    )
-                                }
-                            ],
-                            temperature=0.1
-                        )
-                        # Log raw response for debugging if needed:
-                        st.write(f"Raw profile response {i+1}:", profile_resp.choices[0].message.content)
-                        
-                        # Expecting output like: {"Age": 35, "Gender": "Female", "Persona": "Tech-savvy early adopter..."}
-                        profile = json.loads(profile_resp.choices[0].message.content)
-                        
-                        # Ensure all keys exist; if not, set a default value.
-                        if "Age" not in profile:
-                            profile["Age"] = random.randint(18, 77)
-                        if "Gender" not in profile:
-                            profile["Gender"] = "Unknown"
-                        if "Persona" not in profile:
-                            profile["Persona"] = "No persona provided."
-                        
-                        profiles.append(profile)
-                        personas.append(profile.get("Persona", ""))
-                        time.sleep(2)
-                        break
-                    except Exception as e:
-                        st.error(f"Error generating profile {i+1}: {e}")
-                        retries += 1
-                        time.sleep(RETRY_DELAY)
-            
-            profiles_df = pd.DataFrame(profiles)
-    
-            # Prepare feature list
-            features = [f.strip() for f in features_input.splitlines() if f.strip()]
-            kano_responses = []
-
-            # Fetch Kano ratings for each synthetic respondent (ratings only)
-            for i, row in profiles_df.iterrows():
-                progress_bar.progress((i + 1 + num_respondents) / (num_respondents * 2))
-                retries = 0
-                while retries < MAX_RETRIES:
-                    try:
-                        rating_resp = client.chat.completions.create(
+                        persona_resp = client.chat.completions.create(
                             model="llama3-70b-8192",
                             messages=[
                                 {"role": "system", "content": """
-                                    You are tasked with evaluating product features using the Kano model. Your preferences are influenced by your persona.
-                                    For each feature provided, rate it under two conditions:
-                                    - Functional condition (feature present)
-                                    - Dysfunctional condition (feature absent)
-                                    Use a scale of 1 to 5 where:
-                                      1: I like it,
-                                      2: I expect it,
-                                      3: I am indifferent,
-                                      4: I can live with it,
-                                      5: I dislike it.
-                                    Return ONLY the ratings in the following JSON format:
-                                    {"feature_name": {"functional": {"rating": X}, "dysfunctional": {"rating": X}}}
+                                    Generate a synthetic customer persona based on the provided target customer description.
+                                    The persona should include:
+                                    - Age (realistic for the given target group)
+                                    - Gender (if applicable)
+                                    - A brief description of their preferences, habits, or buying behavior.
+                                    Return the persona as JSON with fields: "Age", "Gender", "Description".
                                 """},
-                                {"role": "user", "content": f"Features: {features}"}
+                                {"role": "user", "content": f"Target Customer Description: {target_customers}"}
                             ],
-                            temperature=1
+                            temperature=0.7
                         )
-                        kano_responses.append(rating_resp.choices[0].message.content)
+                        raw_response = persona_resp.choices[0].message.content
+                        st.write(f"Raw profile response {i+1}:", raw_response)  # Debug output
+                        persona_data = extract_json(raw_response)
+                        if not persona_data:
+                            raise ValueError("Could not extract JSON from the response.")
+                        
+                        profiles.append({
+                            "Age": persona_data.get("Age", random.randint(18, 78)),
+                            "Gender": persona_data.get("Gender", random.choice(["Male", "Female", "Unknown"])),
+                            "Persona": persona_data.get("Description", "No additional details provided.")
+                        })
                         time.sleep(2)
-                        break
+                        break  # Exit retry loop if successful
                     except Exception as e:
-                        st.error(f"Error generating Kano rating for respondent {i+1}: {e}")
                         retries += 1
+                        st.warning(f"Error generating profile {i+1}: {e}")
                         time.sleep(RETRY_DELAY)
-
-            progress_bar.progress(1.0)
-            st.session_state.results = {"profiles": profiles_df, "responses": kano_responses, "features": features}
-            st.session_state.experiment_complete = True
-            st.success("✅ Survey completed! View results in 'Results'.")
-
-# -----------------------------
-# Helper function to parse JSON from ratings-only output
-# -----------------------------
-def clean_and_parse_json(raw_response):
-    """Extracts and parses the first JSON object in the response (ratings only)."""
-    if not raw_response.strip():
-        st.warning("⚠️ Empty response detected. Skipping this entry.")
-        return None
-    json_start = raw_response.find("{")
-    json_end = raw_response.rfind("}") + 1
-    if json_start == -1 or json_end == -1:
-        st.warning("❌ No valid JSON found in the response.")
-        return None
-    json_part = raw_response[json_start:json_end].strip()
-    try:
-        parsed = json.loads(json_part)
-        return parsed
-    except json.JSONDecodeError as e:
-        st.warning(f"❌ JSON parsing error: {e}")
-        return None
+            
+            if not profiles:
+                st.error("No respondent profiles were generated. Please try again.")
+            else:
+                profiles_df = pd.DataFrame(profiles)
+                features = [f.strip() for f in features_input.splitlines() if f.strip()]
+                kano_responses = []
+                
+                # Fetch Kano ratings for each synthetic respondent
+                for i, row in profiles_df.iterrows():
+                    progress_bar.progress((i + 1 + num_respondents) / (num_respondents * 2))
+                    retries = 0
+                    while retries < MAX_RETRIES:
+                        try:
+                            rating_resp = client.chat.completions.create(
+                                model="llama3-70b-8192",
+                                messages=[
+                                    {"role": "system", "content": """
+                                        You are tasked with evaluating product features using the Kano model.
+                                        Your preferences are influenced by your persona.
+                                        When there is a conflict between age/gender and the target customer description, the latter prevails.
+                                        For each feature provided, rate it under two conditions:
+                                        - Functional condition (feature present)
+                                        - Dysfunctional condition (feature absent)
+                                        Use a scale of 1 to 5 where:
+                                          1: I like it,
+                                          2: I expect it,
+                                          3: I am indifferent,
+                                          4: I can live with it,
+                                          5: I dislike it.
+                                        Return ONLY the ratings in the following JSON format:
+                                        {\"feature_name\": {\"functional\": {\"rating\": X}, \"dysfunctional\": {\"rating\": X}}}
+                                    """},
+                                    {"role": "user", "content": f"Features: {features}"}
+                                ],
+                                temperature=1
+                            )
+                            kano_responses.append(rating_resp.choices[0].message.content)
+                            time.sleep(2)
+                            break
+                        except Exception as e:
+                            retries += 1
+                            st.warning(f"Error generating Kano response for respondent {i+1}: {e}")
+                            time.sleep(RETRY_DELAY)
+                
+                progress_bar.progress(1.0)
+                st.session_state.results = {"profiles": profiles_df, "responses": kano_responses, "features": features}
+                st.session_state.experiment_complete = True
+                st.success("✅ Survey completed! View results in 'Results'.")
 
 # -----------------------------
 # TAB 2: Results
@@ -203,55 +177,38 @@ with tab2:
         st.info("Run the survey first.")
     else:
         st.header("Results")
-        
-        # Toggle to show persona details
         show_persona = st.checkbox("Show Persona Details", value=False)
         
-        st.write("### Respondent Profiles")
-        profiles_df = st.session_state.results["profiles"].copy()
-        profiles_df.index += 1  
-        if show_persona:
-            st.dataframe(profiles_df)
+        if "profiles" not in st.session_state.results or st.session_state.results["profiles"].empty:
+            st.warning("No respondent profiles to display.")
         else:
-            # Only drop 'Persona' if it exists
-            cols_to_drop = [col for col in ["Persona"] if col in profiles_df.columns]
-            st.dataframe(profiles_df.drop(columns=cols_to_drop))
+            profiles_df = st.session_state.results["profiles"].copy()
+            profiles_df.index += 1  
+            st.write("### Respondent Profiles")
+            if show_persona:
+                st.dataframe(profiles_df)
+            else:
+                if "Persona" in profiles_df.columns:
+                    st.dataframe(profiles_df.drop(columns=["Persona"]))
+                else:
+                    st.dataframe(profiles_df)
         
-        # Process Kano ratings and classification
-        kano_responses = st.session_state.results["responses"]
         features = st.session_state.results["features"]
-
+        kano_responses = st.session_state.results["responses"]
+        
         if not kano_responses:
             st.warning("❌ No Kano responses found. Please ensure the survey ran successfully.")
         else:
-            rating_map = {"1": 1, "2": 2, "3": 3, "4": 4, "5": 5}
-
-            def classify_kano(f, d):
-                if f == 1 and d >= 4:
-                    return "Excitement"
-                elif f == 2 and d == 5:
-                    return "Must-Have"
-                elif f == 3 and d == 3:
-                    return "Indifferent"
-                else:
-                    return "Expected"
-
             classifications = []
             for i, resp in enumerate(kano_responses):
-                parsed_json = clean_and_parse_json(resp)
-                if parsed_json is None:
-                    st.warning(f"⚠️ Invalid JSON response at index {i+1}. Skipping.")
-                    continue
-                for feature, data in parsed_json.items():
-                    if "functional" in data and "dysfunctional" in data:
-                        try:
-                            f_score = int(data["functional"]["rating"])
-                            d_score = int(data["dysfunctional"]["rating"])
-                        except (ValueError, KeyError):
-                            st.warning(f"⚠️ Unable to parse ratings for feature {feature} at index {i+1}. Skipping.")
-                            continue
+                try:
+                    parsed_json = json.loads(resp)
+                    for feature, data in parsed_json.items():
+                        f_score = int(data["functional"]["rating"])
+                        d_score = int(data["dysfunctional"]["rating"])
                         net_score = f_score - d_score
-                        category = classify_kano(f_score, d_score)
+                        # Simplified classification logic
+                        category = "Excitement" if f_score == 1 and d_score >= 4 else "Expected"
                         classifications.append({
                             "Feature": feature,
                             "Rating (Present)": f_score,
@@ -259,28 +216,17 @@ with tab2:
                             "Net Kano Score": net_score,
                             "Kano Classification": category
                         })
-                    else:
-                        st.warning(f"⚠️ Missing rating details for feature {feature} at index {i+1}. Skipping.")
-
+                except Exception as e:
+                    st.warning(f"Error parsing Kano response at index {i+1}: {e}")
+            
             if classifications:
                 kano_df = pd.DataFrame(classifications)
-                kano_df.index = range(1, len(kano_df)+1)  # Numbering starts at 1
+                kano_df.index = range(1, len(kano_df)+1)
                 st.write("#### Kano Classification Table")
                 st.dataframe(kano_df)
                 
-                st.markdown(
-                    """
-                    **Scale Explanation:** Ratings are on a scale from 1 to 5, where 1 means 'I like it', 2 means 'I expect it', 3 means 'I am indifferent', 4 means 'I can live with it', and 5 means 'I dislike it'. 
-                    
-                    **Classification Rules:** 'Excitement' is assigned when the functional rating is 1 and the dysfunctional rating is 4 or higher; 
-                    'Must-Have' is when the functional rating is 2 and the dysfunctional rating is 5; 'Indifferent' when both ratings are 3; 
-                    and 'Expected' for any other combination. The Net Kano Score is computed as (Rating (Present) - Rating (Missing)).
-                    """
-                )
-                
-                # Create frequency dataframe for the diagram
+                # Create a stacked bar chart from the classification counts per feature
                 freq_df = kano_df.groupby(["Feature", "Kano Classification"]).size().reset_index(name="Count")
-                # Generate a stacked column chart
                 fig = px.bar(
                     freq_df,
                     x="Feature",
@@ -299,11 +245,5 @@ with tab2:
                 )
                 st.plotly_chart(fig)
                 
-                # Download button for CSV export
-                csv_data = kano_df.to_csv(index=True).encode('utf-8')
                 st.download_button(label="Download Kano Evaluation Data",
-                                   data=csv_data,
-                                   file_name=f"kano_evaluation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                                   mime="text/csv")
-            else:
-                st.warning("🚨 No valid Kano classifications found.")
+                                   data=kano_df.to_csv(index=True).encode('utf-8'),
