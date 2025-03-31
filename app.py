@@ -1,10 +1,9 @@
 import streamlit as st
 import pandas as pd
-import openai
+from groq import Groq
 import json
 
-# Load API key from Streamlit secrets
-openai.api_key = st.secrets["GROQ_API_KEY"]
+client = Groq(api_key=api_key)
 
 def generate_profiles(n, target_customers):
     """Generate synthetic respondent profiles using Llama3 via Groq API."""
