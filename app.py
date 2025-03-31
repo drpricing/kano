@@ -29,7 +29,6 @@ with st.sidebar:
     st.markdown("This tool uses the Kano Model to evaluate product features.")
 
 st.title('🤖 Kano Model Feature Evaluation')
-
 tab1, tab2 = st.tabs(["Setup", "Results"])
 
 # -----------------------------
@@ -42,7 +41,7 @@ with tab1:
     for key in ["start_experiment", "experiment_complete", "results"]:
         if key not in st.session_state:
             st.session_state[key] = False if key != "results" else None
-
+    
     # Input fields
     st.subheader("Product Name")
     product_name = st.text_input('Enter product name', key="product_name")
@@ -99,7 +98,6 @@ if st.session_state.start_experiment:
                 except Exception:
                     retries += 1
                     time.sleep(RETRY_DELAY)
-
         profiles_df = pd.DataFrame(profiles)
         
         # Generate hidden persona descriptions
@@ -122,13 +120,10 @@ if st.session_state.start_experiment:
                 except Exception:
                     retries += 1
                     time.sleep(RETRY_DELAY)
-
         if personas:
-            profiles_df["Persona"] = personas  
-
+            profiles_df["Persona"] = personas 
         features = [f.strip() for f in features_input.splitlines() if f.strip()]
         kano_responses = []
-
         # Fetch Kano ratings
         for i, row in profiles_df.iterrows():
             progress_bar.progress((i + 1 + num_respondents) / (num_respondents * 2))
@@ -152,7 +147,6 @@ if st.session_state.start_experiment:
                 except Exception:
                     retries += 1
                     time.sleep(RETRY_DELAY)
-
         progress_bar.progress(1.0)
         st.session_state.results = {"profiles": profiles_df, "responses": kano_responses, "features": features}
         st.session_state.experiment_complete = True
@@ -170,16 +164,18 @@ with tab2:
         
         st.write("### Respondent Profiles")
         profiles_df = st.session_state.results["profiles"].copy()
-        profiles_df.index += 1  
+        profiles_df.index += 1 
+        
+        # Debugging: Print columns and DataFrame head
+        print(profiles_df.columns)
+        print(profiles_df.head())
         
         if not show_persona and "Persona" in profiles_df.columns:
-            profiles_df = profiles_df.drop(columns=["Persona"])
-
+            profiles_df = profiles_df.drop(columns=["Persona"], errors='ignore')
         st.dataframe(profiles_df)
         
         kano_responses = st.session_state.results["responses"]
         classifications = []
-
         for i, resp in enumerate(kano_responses):
             try:
                 parsed_json = json.loads(resp)
@@ -190,34 +186,30 @@ with tab2:
                     classifications.append({"Feature": feature, "Functional": f_score, "Dysfunctional": d_score, "Kano": category})
             except (ValueError, KeyError, json.JSONDecodeError):
                 continue
-
         if classifications:
             kano_df = pd.DataFrame(classifications)
             st.write("### Kano Classification Table")
             st.dataframe(kano_df)
-
             freq_df = kano_df.groupby(["Feature", "Kano"]).size().reset_index(name="Count")
-
             fig = px.bar(
-            freq_df,
-            x="Feature",
-            y="Count",
-            color="Kano",
-            text="Count",
-            title="Kano Classification Counts per Feature",
-            barmode="stack"  # Ensures a stacked column chart
+                freq_df,
+                x="Feature",
+                y="Count",
+                color="Kano",
+                text="Count",
+                title="Kano Classification Counts per Feature",
+                barmode="stack" # Ensures a stacked column chart
             )
-        
+            
             fig.update_layout(
-            xaxis_title="Feature",
-            yaxis_title="Number of Responses",
-            legend_title="Kano Classification",
-            uniformtext_minsize=12,
-            uniformtext_mode='hide'
+                xaxis_title="Feature",
+                yaxis_title="Number of Responses",
+                legend_title="Kano Classification",
+                uniformtext_minsize=12,
+                uniformtext_mode='hide'
             )
-        
+            
             st.plotly_chart(fig)
-
             st.download_button("Download Kano Data", kano_df.to_csv().encode(), "kano_results.csv")
         else:
             st.warning("🚨 No valid Kano classifications found.")
