@@ -120,8 +120,7 @@ with tab1:
                                     and one for the dysfunctional condition (feature absent).
                                     Please return the ratings in the following format:
                                     {"feature_name": {"functional": {"rating": X}, "dysfunctional": {"rating": X}}}
-                                """},
-                                {"role": "user", "content": f"Please evaluate these features: {features}"}
+                                """}
                             ],
                             temperature=0
                         )
