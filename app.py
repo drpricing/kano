@@ -30,19 +30,23 @@ with st.sidebar:
 st.title("🤖 Kano Model Feature Evaluation")
 tab1, tab2 = st.tabs(["Setup", "Results"])
 
-# Helper function to extract JSON from a text response
-def extract_json(text):
-    """
-    Extracts the first JSON object from a string.
-    """
-    json_start = text.find("{")
-    json_end = text.rfind("}") + 1
-    if json_start == -1 or json_end == -1:
+# Helper function to extract and parse JSON from a text response
+def clean_and_parse_json(raw_response):
+    """Extracts and parses the first JSON object in the response."""
+    if not raw_response.strip():
+        st.warning("⚠️ Empty response detected. Skipping this entry.")
         return None
-    json_str = text[json_start:json_end]
+    json_start = raw_response.find("{")
+    json_end = raw_response.rfind("}") + 1
+    if json_start == -1 or json_end == -1:
+        st.warning("❌ No valid JSON found in the response.")
+        return None
+    json_str = raw_response[json_start:json_end].strip()
     try:
-        return json.loads(json_str)
-    except json.JSONDecodeError:
+        parsed = json.loads(json_str)
+        return parsed
+    except json.JSONDecodeError as e:
+        st.warning(f"❌ JSON parsing error: {e}")
         return None
 
 # -----------------------------
@@ -81,13 +85,12 @@ with tab1:
             RETRY_DELAY = 10
             profiles = []
             
-            # Generate synthetic respondent personas
+            # Generate synthetic respondent personas with a refined prompt for pure JSON
             for i in range(num_respondents):
                 progress_bar.progress((i + 1) / (num_respondents * 2))
                 retries = 0
                 while retries < MAX_RETRIES:
                     try:
-                        # Refined prompt to force pure JSON output
                         persona_resp = client.chat.completions.create(
                             model="llama3-70b-8192",
                             messages=[
@@ -105,7 +108,7 @@ The persona must be returned as a pure JSON object (with no additional commentar
                         )
                         raw_response = persona_resp.choices[0].message.content
                         st.write(f"Raw profile response {i+1}:", raw_response)  # Debug output
-                        persona_data = extract_json(raw_response)
+                        persona_data = clean_and_parse_json(raw_response)
                         if not persona_data:
                             raise ValueError("Could not extract JSON from the response.")
                         
@@ -128,7 +131,7 @@ The persona must be returned as a pure JSON object (with no additional commentar
                 features = [f.strip() for f in features_input.splitlines() if f.strip()]
                 kano_responses = []
                 
-                # Fetch Kano ratings for each synthetic respondent
+                # Fetch Kano ratings for each synthetic respondent with a refined prompt for pure JSON output
                 for i, row in profiles_df.iterrows():
                     progress_bar.progress((i + 1 + num_respondents) / (num_respondents * 2))
                     retries = 0
@@ -150,7 +153,7 @@ Use a scale of 1 to 5 where:
   3: I am indifferent,
   4: I can live with it,
   5: I dislike it.
-Return ONLY the ratings in the following JSON format:
+Return ONLY a pure JSON object in the following format:
 {"feature_name": {"functional": {"rating": X}, "dysfunctional": {"rating": X}}}
 """}, 
                                     {"role": "user", "content": f"Features: {features}"}
@@ -194,22 +197,41 @@ with tab2:
                 else:
                     st.dataframe(profiles_df)
         
-        features = st.session_state.results["features"]
+        # Process Kano ratings and classification
         kano_responses = st.session_state.results["responses"]
-        
+        features = st.session_state.results["features"]
+
         if not kano_responses:
             st.warning("❌ No Kano responses found. Please ensure the survey ran successfully.")
         else:
+            rating_map = {"1": 1, "2": 2, "3": 3, "4": 4, "5": 5}
+
+            def classify_kano(f, d):
+                if f == 1 and d >= 4:
+                    return "Excitement"
+                elif f == 2 and d == 5:
+                    return "Must-Have"
+                elif f == 3 and d == 3:
+                    return "Indifferent"
+                else:
+                    return "Expected"
+
             classifications = []
             for i, resp in enumerate(kano_responses):
-                try:
-                    parsed_json = json.loads(resp)
-                    for feature, data in parsed_json.items():
-                        f_score = int(data["functional"]["rating"])
-                        d_score = int(data["dysfunctional"]["rating"])
+                parsed_json = clean_and_parse_json(resp)
+                if parsed_json is None:
+                    st.warning(f"⚠️ Invalid JSON response at index {i+1}. Skipping.")
+                    continue
+                for feature, data in parsed_json.items():
+                    if "functional" in data and "dysfunctional" in data:
+                        try:
+                            f_score = int(data["functional"]["rating"])
+                            d_score = int(data["dysfunctional"]["rating"])
+                        except (ValueError, KeyError):
+                            st.warning(f"⚠️ Unable to parse ratings for feature {feature} at index {i+1}. Skipping.")
+                            continue
                         net_score = f_score - d_score
-                        # Simplified classification logic
-                        category = "Excitement" if f_score == 1 and d_score >= 4 else "Expected"
+                        category = classify_kano(f_score, d_score)
                         classifications.append({
                             "Feature": feature,
                             "Rating (Present)": f_score,
@@ -217,17 +239,28 @@ with tab2:
                             "Net Kano Score": net_score,
                             "Kano Classification": category
                         })
-                except Exception as e:
-                    st.warning(f"Error parsing Kano response at index {i+1}: {e}")
-            
+                    else:
+                        st.warning(f"⚠️ Missing rating details for feature {feature} at index {i+1}. Skipping.")
+
             if classifications:
                 kano_df = pd.DataFrame(classifications)
-                kano_df.index = range(1, len(kano_df)+1)
+                kano_df.index = range(1, len(kano_df)+1)  # Numbering starts at 1
                 st.write("#### Kano Classification Table")
                 st.dataframe(kano_df)
                 
-                # Create a stacked bar chart from classification counts per feature
+                st.markdown(
+                    """
+                    **Scale Explanation:** Ratings are on a scale from 1 to 5, where 1 means 'I like it', 2 means 'I expect it', 3 means 'I am indifferent', 4 means 'I can live with it', and 5 means 'I dislike it'. 
+                    
+                    **Classification Rules:** 'Excitement' is assigned when the functional rating is 1 and the dysfunctional rating is 4 or higher; 
+                    'Must-Have' is when the functional rating is 2 and the dysfunctional rating is 5; 'Indifferent' when both ratings are 3; 
+                    and 'Expected' for any other combination. The Net Kano Score is computed as (Rating (Present) - Rating (Missing)).
+                    """
+                )
+                
+                # Create frequency dataframe for the diagram
                 freq_df = kano_df.groupby(["Feature", "Kano Classification"]).size().reset_index(name="Count")
+                # Generate a stacked column chart
                 fig = px.bar(
                     freq_df,
                     x="Feature",
@@ -246,8 +279,10 @@ with tab2:
                 )
                 st.plotly_chart(fig)
                 
+                # Download button for CSV export
+                csv_data = kano_df.to_csv(index=True).encode('utf-8')
                 st.download_button(label="Download Kano Evaluation Data",
-                                   data=kano_df.to_csv(index=True).encode('utf-8'),
+                                   data=csv_data,
                                    file_name=f"kano_evaluation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                                    mime="text/csv")
             else:
