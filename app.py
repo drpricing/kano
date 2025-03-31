@@ -37,7 +37,6 @@ tab1, tab2 = st.tabs(["Setup", "Results"])
 with tab1:
     st.header("Setup")
     
-    # Initialize session state if not present
     if 'start_experiment' not in st.session_state:
         st.session_state.start_experiment = False
     if 'experiment_complete' not in st.session_state:
@@ -45,19 +44,11 @@ with tab1:
     if 'results' not in st.session_state:
         st.session_state.results = None
 
-    # Input fields
-    st.subheader("Product Name")
     product_name = st.text_input('Enter product name', key="product_name")
-    
-    st.subheader("Target Customers")
     target_customers = st.text_area('Describe your target customers', height=150, key="target_customers")
-    
-    st.subheader("Features")
     features_input = st.text_area('List features (one per line)', height=150, key="features")
-    
-    st.subheader("Number of Synthetic Respondents")
     num_respondents = st.number_input('Number of respondents', min_value=1, max_value=100, value=8, key="num_respondents")
-    
+
     if st.button('🚀 Start Survey', type="primary"):
         if not api_key:
             st.error("Please provide your Groq API key in the sidebar.")
@@ -67,23 +58,16 @@ with tab1:
             st.session_state.start_experiment = True
             st.session_state.experiment_complete = False
             st.session_state.results = None
-
+            
             st.header("Survey Synthetic Respondents")
             progress_bar = st.progress(0)
             client = Groq(api_key=api_key)
-
-            # Generate synthetic respondent profiles (with hidden personas)
-            #ages = range(18, 78)
-            #genders = ["Male", "Female", "Unknown"]
-            #profiles = [{"Age": random.choice(ages), "Gender": random.choice(genders)} for _ in range(num_respondents)]
-            #profiles_df = pd.DataFrame(profiles)
-
+            
             MAX_RETRIES = 3
             RETRY_DELAY = 10
-            personas = []
             profiles = []
             
-            # Generate synthetic respondent personas with age & gender derived from target customers
+            # Generate synthetic respondent personas
             for i in range(num_respondents):
                 progress_bar.progress((i + 1) / (num_respondents * 2))
                 retries = 0
@@ -92,44 +76,28 @@ with tab1:
                         persona_resp = client.chat.completions.create(
                             model="llama3-70b-8192",
                             messages=[
-                                {"role": "system", "content": """
-                                    Generate a synthetic customer persona based on the provided target customer description.
-                                    The persona should include:
-                                    - Age (realistic for the given target group)
-                                    - Gender (if applicable)
-                                    - A brief description of their preferences, habits, or buying behavior.
-                                    Return the persona as JSON with fields: "Age", "Gender", "Description".
-                                """},
+                                {"role": "system", "content": "Generate a persona based on the target description. Include Age, Gender, and Description."},
                                 {"role": "user", "content": f"Target Customer Description: {target_customers}"}
                             ],
                             temperature=0.7
                         )
                         persona_data = json.loads(persona_resp.choices[0].message.content)
-
-                        # Extract age, gender, and description
-                        age = persona_data.get("Age", random.randint(18, 78))  # Fallback random age
-                        gender = persona_data.get("Gender", random.choice(["Male", "Female", "Unknown"]))  # Fallback gender
-                        description = persona_data.get("Description", "No additional details provided.")
-            
-                        personas.append(description)
-                        profiles.append({"Age": age, "Gender": gender, "Persona": description})
-            
+                        profiles.append({
+                            "Age": persona_data.get("Age", random.randint(18, 78)),
+                            "Gender": persona_data.get("Gender", random.choice(["Male", "Female", "Unknown"])),
+                            "Persona": persona_data.get("Description", "No details provided.")
+                        })
                         time.sleep(2)
-                        break  # Exit retry loop if successful
-            
-                        except Exception as e:
+                        break
+                    except Exception as e:
                         retries += 1
                         time.sleep(RETRY_DELAY)
             
-                        # Store generated profiles in DataFrame
-                        profiles_df = pd.DataFrame(profiles)
-
-
-            # Prepare feature list
+            profiles_df = pd.DataFrame(profiles)
             features = [f.strip() for f in features_input.splitlines() if f.strip()]
             kano_responses = []
-
-            # Fetch Kano ratings for each synthetic respondent (ratings only)
+            
+            # Fetch Kano ratings for each synthetic respondent
             for i, row in profiles_df.iterrows():
                 progress_bar.progress((i + 1 + num_respondents) / (num_respondents * 2))
                 retries = 0
@@ -138,20 +106,7 @@ with tab1:
                         rating_resp = client.chat.completions.create(
                             model="llama3-70b-8192",
                             messages=[
-                                {"role": "system", "content": """
-                                    You are tasked with evaluating product features using the Kano model. Your preferences are influenced by your persona. When there is conflict among age/gender and target customer description, the latter prevails.
-                                    For each feature provided, rate it under two conditions:
-                                    - Functional condition (feature present)
-                                    - Dysfunctional condition (feature absent)
-                                    Use a scale of 1 to 5 where:
-                                      1: I like it,
-                                      2: I expect it,
-                                      3: I am indifferent,
-                                      4: I can live with it,
-                                      5: I dislike it.
-                                    Return ONLY the ratings in the following JSON format:
-                                    {"feature_name": {"functional": {"rating": X}, "dysfunctional": {"rating": X}}}
-                                """},
+                                {"role": "system", "content": "Evaluate features using Kano Model. Return ratings in JSON."},
                                 {"role": "user", "content": f"Features: {features}"}
                             ],
                             temperature=1
@@ -162,12 +117,11 @@ with tab1:
                     except Exception:
                         retries += 1
                         time.sleep(RETRY_DELAY)
-
+            
             progress_bar.progress(1.0)
             st.session_state.results = {"profiles": profiles_df, "responses": kano_responses, "features": features}
             st.session_state.experiment_complete = True
             st.success("✅ Survey completed! View results in 'Results'.")
-
 # -----------------------------
 # Helper function to parse JSON from ratings-only output
 # -----------------------------
