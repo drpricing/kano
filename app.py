@@ -174,6 +174,7 @@ def clean_and_parse_json(raw_response):
     else:
         st.warning("❌ No valid JSON could be parsed from the response.")
         return None
+
 # --- TAB 2: Results ---
 with tab2:
     if not st.session_state.experiment_complete:
