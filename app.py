@@ -82,7 +82,7 @@ with tab1:
                     try:
                         response = client.chat.completions.create(
                             model="llama3-70b-8192",
-                            messages=[
+                            messages=[ 
                                 {"role": "system", "content": "Create a customer persona based on:"},
                                 {"role": "user", "content": f"Age: {row['Age']}; Gender: {row['Gender']}"}
                             ],
@@ -107,7 +107,7 @@ with tab1:
                     try:
                         response = client.chat.completions.create(
                             model="llama3-70b-8192",
-                            messages=[
+                            messages=[ 
                                 {"role": "system", "content": """
                                     You are tasked with evaluating product features using a Kano model. For each feature, 
                                     please rate it on a scale from 1 to 5, based on the following meanings:
@@ -136,9 +136,6 @@ with tab1:
             st.session_state.results = {"profiles": profiles_df, "responses": kano_responses, "features": features}
             st.session_state.experiment_complete = True
             st.success("✅ Survey completed! View results in 'Results'.")
-
-import json
-import re
 
 # --- TAB 2: Results ---
 with tab2:
@@ -194,31 +191,38 @@ with tab2:
                         continue
                     
                     for json_obj in json_objects:
-                        parsed_json = json.loads(json_obj)
+                        try:
+                            # Debugging: Output the raw JSON string
+                            st.write(f"Attempting to parse JSON: {json_obj}")
 
-                        # Check if the parsed JSON contains valid feature data
-                        if "features" not in parsed_json or not isinstance(parsed_json["features"], list):
-                            st.warning(f"⚠️ Unexpected response format at index {i+1}: {parsed_json}")
-                            continue  
+                            parsed_json = json.loads(json_obj)
+                            
+                            # Debugging: Output parsed JSON
+                            st.write(f"Parsed JSON: {parsed_json}")
 
-                        for feat_obj in parsed_json["features"]:
-                            if "feature" in feat_obj and "functional" in feat_obj and "dysfunctional" in feat_obj:
-                                f_score = rating_map.get(str(feat_obj["functional"]["rating"]).strip(), None)
-                                d_score = rating_map.get(str(feat_obj["dysfunctional"]["rating"]).strip(), None)
+                            # Check if the parsed JSON contains valid feature data
+                            if "features" not in parsed_json or not isinstance(parsed_json["features"], list):
+                                st.warning(f"⚠️ Unexpected response format at index {i+1}: {parsed_json}")
+                                continue
 
-                                if f_score is None or d_score is None:
-                                    st.warning(f"⚠️ Invalid scores at index {i+1}. Skipping.")
-                                    continue
+                            for feat_obj in parsed_json["features"]:
+                                if "feature" in feat_obj and "functional" in feat_obj and "dysfunctional" in feat_obj:
+                                    f_score = rating_map.get(str(feat_obj["functional"]["rating"]).strip(), None)
+                                    d_score = rating_map.get(str(feat_obj["dysfunctional"]["rating"]).strip(), None)
 
-                                category = classify_kano(f_score, d_score)
-                                classifications.append({
-                                    "Feature": feat_obj["feature"],
-                                    "Kano Classification": category
-                                })
+                                    if f_score is None or d_score is None:
+                                        st.warning(f"⚠️ Invalid scores at index {i+1}. Skipping.")
+                                        continue
 
-                except json.JSONDecodeError as e:
-                    st.warning(f"❌ JSON parsing error at index {i+1}: {e}")
-                    continue
+                                    category = classify_kano(f_score, d_score)
+                                    classifications.append({
+                                        "Feature": feat_obj["feature"],
+                                        "Kano Classification": category
+                                    })
+                            
+                        except json.JSONDecodeError as e:
+                            st.warning(f"❌ JSON parsing error at index {i+1}: {e}")
+                            continue
 
             if classifications:
                 kano_df = pd.DataFrame(classifications)
