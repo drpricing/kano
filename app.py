@@ -173,7 +173,7 @@ with tab2:
                     return "Expected"
 
             classifications = []
-            
+
             for i, resp in enumerate(kano_responses):
                 try:
                     if not resp.strip():
@@ -226,6 +226,10 @@ with tab2:
                         except Exception as e:
                             st.warning(f"⚠️ Unexpected error parsing response at index {i+1}: {e}")
                             continue
+
+                except Exception as e:
+                    st.warning(f"⚠️ Unexpected error processing response at index {i+1}: {e}")
+                    continue
 
             if classifications:
                 kano_df = pd.DataFrame(classifications)
