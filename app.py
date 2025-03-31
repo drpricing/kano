@@ -139,32 +139,41 @@ with tab1:
 
 # --- Helper function to clean and parse JSON ---
 def clean_and_parse_json(raw_response):
-    """Clean the raw response and attempt to parse as JSON."""
+    """Cleans up raw response and attempts to parse it as valid JSON."""
     # Log the raw response for debugging
-    st.write(f"Raw response: {raw_response}")  # Log the raw response
-
+    st.write(f"Raw response: {raw_response}")  # Log the raw response for debugging
+    
     # Check if the response is empty or None
     if not raw_response.strip():
         st.warning("⚠️ Empty response detected. Skipping this entry.")
         return None
+    
+    # Extract JSON using a regular expression that looks for curly braces ({}).
+    # This will find the first JSON-like block in the response.
+    json_pattern = r'(\{.*\})'
+    matches = re.findall(json_pattern, raw_response, re.DOTALL)
 
-    # Try to extract the JSON part of the response (everything that looks like JSON)
-    json_pattern = r'(\{.*\})'  # Regular expression to capture the JSON part
-    match = re.search(json_pattern, raw_response, re.DOTALL)
-
-    if match:
-        json_part = match.group(1)
-        st.write(f"Extracted JSON: {json_part}")  # Log the extracted JSON
-        try:
-            # Parse the extracted JSON
-            return json.loads(json_part)
-        except json.JSONDecodeError as e:
-            st.warning(f"❌ JSON parsing error: {e}")
-            return None
-    else:
+    # If no matches, return warning and None
+    if not matches:
         st.warning("❌ No valid JSON found in the response.")
         return None
-
+    
+    # Attempt to parse each JSON block and return a list of parsed JSON objects
+    parsed_jsons = []
+    for json_str in matches:
+        try:
+            parsed_json = json.loads(json_str)
+            parsed_jsons.append(parsed_json)
+        except json.JSONDecodeError as e:
+            st.warning(f"❌ JSON parsing error: {e}")
+            continue
+    
+    # If we have parsed JSON objects, return them, otherwise return None
+    if parsed_jsons:
+        return parsed_jsons
+    else:
+        st.warning("❌ No valid JSON could be parsed from the response.")
+        return None
 # --- TAB 2: Results ---
 with tab2:
     if not st.session_state.experiment_complete:
