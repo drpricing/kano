@@ -248,7 +248,7 @@ with tab2:
                 # Generate stacked column chart: x-axis = features, y-axis = count, legend = Kano Classification
                 freq_df = kano_df.groupby(["Feature", "Kano Classification"]).size().reset_index(name="Count")
                 fig = px.bar(freq_df, x="Feature", y="Count", color="Kano Classification",
-                             barmode="stack", title="Stacked Kano Classification Counts per Feature")
+                             barmode="stack", title="Kano Classification Counts per Feature")
                 st.plotly_chart(fig)
                 
                 # Download button for CSV export
