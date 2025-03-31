@@ -87,17 +87,18 @@ with tab1:
                 retries = 0
                 while retries < MAX_RETRIES:
                     try:
+                        # Refined prompt to force pure JSON output
                         persona_resp = client.chat.completions.create(
                             model="llama3-70b-8192",
                             messages=[
-                                {"role": "system", "content": """
-                                    Generate a synthetic customer persona based on the provided target customer description.
-                                    The persona should include:
-                                    - Age (realistic for the given target group)
-                                    - Gender (if applicable)
-                                    - A brief description of their preferences, habits, or buying behavior.
-                                    Return the persona as JSON with fields: "Age", "Gender", "Description".
-                                """},
+                                {
+                                    "role": "system",
+                                    "content": """
+Generate a synthetic customer persona based on the provided target customer description.
+The persona must be returned as a pure JSON object (with no additional commentary) with exactly the following keys:
+"Age" (an integer), "Gender" (a string), "Description" (a short string).
+"""
+                                },
                                 {"role": "user", "content": f"Target Customer Description: {target_customers}"}
                             ],
                             temperature=0.7
@@ -137,21 +138,21 @@ with tab1:
                                 model="llama3-70b-8192",
                                 messages=[
                                     {"role": "system", "content": """
-                                        You are tasked with evaluating product features using the Kano model.
-                                        Your preferences are influenced by your persona.
-                                        When there is a conflict between age/gender and the target customer description, the latter prevails.
-                                        For each feature provided, rate it under two conditions:
-                                        - Functional condition (feature present)
-                                        - Dysfunctional condition (feature absent)
-                                        Use a scale of 1 to 5 where:
-                                          1: I like it,
-                                          2: I expect it,
-                                          3: I am indifferent,
-                                          4: I can live with it,
-                                          5: I dislike it.
-                                        Return ONLY the ratings in the following JSON format:
-                                        {\"feature_name\": {\"functional\": {\"rating\": X}, \"dysfunctional\": {\"rating\": X}}}
-                                    """},
+You are tasked with evaluating product features using the Kano model.
+Your preferences are influenced by your persona.
+When there is a conflict between age/gender and the target customer description, the latter prevails.
+For each feature provided, rate it under two conditions:
+- Functional condition (feature present)
+- Dysfunctional condition (feature absent)
+Use a scale of 1 to 5 where:
+  1: I like it,
+  2: I expect it,
+  3: I am indifferent,
+  4: I can live with it,
+  5: I dislike it.
+Return ONLY the ratings in the following JSON format:
+{"feature_name": {"functional": {"rating": X}, "dysfunctional": {"rating": X}}}
+"""}, 
                                     {"role": "user", "content": f"Features: {features}"}
                                 ],
                                 temperature=1
@@ -225,7 +226,7 @@ with tab2:
                 st.write("#### Kano Classification Table")
                 st.dataframe(kano_df)
                 
-                # Create a stacked bar chart from the classification counts per feature
+                # Create a stacked bar chart from classification counts per feature
                 freq_df = kano_df.groupby(["Feature", "Kano Classification"]).size().reset_index(name="Count")
                 fig = px.bar(
                     freq_df,
