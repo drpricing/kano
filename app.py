@@ -174,59 +174,45 @@ with tab2:
 
             classifications = []
 
+            def clean_and_parse_json(raw_response):
+                """Clean the raw response and attempt to parse as JSON."""
+                # Remove any stray commas or malformed characters
+                cleaned_response = re.sub(r"([a-zA-Z0-9]+):", r'"\1":', raw_response)
+                cleaned_response = re.sub(r"([a-zA-Z0-9]+),", r'"\1",', cleaned_response)
+                cleaned_response = f"[{cleaned_response}]"
+                try:
+                    return json.loads(cleaned_response)
+                except json.JSONDecodeError as e:
+                    st.warning(f"❌ JSON parsing error: {e}")
+                    return None
+
             for i, resp in enumerate(kano_responses):
                 try:
                     if not resp.strip():
                         st.warning(f"⚠️ Skipping empty response at index {i+1}.")
                         continue  
 
-                    # Debugging: Output raw response to identify the problem
-                    st.write(f"Raw response at index {i+1}: {resp}")
+                    # Clean and parse the response
+                    json_data = clean_and_parse_json(resp)
 
-                    # Split the raw response into individual JSON objects
-                    json_objects = re.findall(r"\{.*?\}", resp, re.DOTALL)
-                    
-                    if not json_objects:
-                        st.warning(f"⚠️ No valid JSON detected in response at index {i+1}. Skipping.")
+                    if not json_data:
+                        st.warning(f"⚠️ Skipping malformed response at index {i+1}.")
                         continue
-                    
-                    for json_obj in json_objects:
-                        try:
-                            # Debugging: Output the raw JSON string
-                            st.write(f"Attempting to parse JSON: {json_obj}")
 
-                            parsed_json = json.loads(json_obj)
-                            
-                            # Debugging: Output parsed JSON
-                            st.write(f"Parsed JSON: {parsed_json}")
+                    for feat_obj in json_data:
+                        if "feature" in feat_obj and "functional" in feat_obj and "dysfunctional" in feat_obj:
+                            f_score = rating_map.get(str(feat_obj["functional"]["rating"]).strip(), None)
+                            d_score = rating_map.get(str(feat_obj["dysfunctional"]["rating"]).strip(), None)
 
-                            # Check if the parsed JSON contains valid feature data
-                            if "features" not in parsed_json or not isinstance(parsed_json["features"], list):
-                                st.warning(f"⚠️ Unexpected response format at index {i+1}: {parsed_json}")
+                            if f_score is None or d_score is None:
+                                st.warning(f"⚠️ Invalid scores at index {i+1}. Skipping.")
                                 continue
 
-                            for feat_obj in parsed_json["features"]:
-                                if "feature" in feat_obj and "functional" in feat_obj and "dysfunctional" in feat_obj:
-                                    f_score = rating_map.get(str(feat_obj["functional"]["rating"]).strip(), None)
-                                    d_score = rating_map.get(str(feat_obj["dysfunctional"]["rating"]).strip(), None)
-
-                                    if f_score is None or d_score is None:
-                                        st.warning(f"⚠️ Invalid scores at index {i+1}. Skipping.")
-                                        continue
-
-                                    category = classify_kano(f_score, d_score)
-                                    classifications.append({
-                                        "Feature": feat_obj["feature"],
-                                        "Kano Classification": category
-                                    })
-                            
-                        except json.JSONDecodeError as e:
-                            st.warning(f"❌ JSON parsing error at index {i+1}: {e}")
-                            continue
-                        except Exception as e:
-                            st.warning(f"⚠️ Unexpected error parsing response at index {i+1}: {e}")
-                            continue
-
+                            category = classify_kano(f_score, d_score)
+                            classifications.append({
+                                "Feature": feat_obj["feature"],
+                                "Kano Classification": category
+                            })
                 except Exception as e:
                     st.warning(f"⚠️ Unexpected error processing response at index {i+1}: {e}")
                     continue
