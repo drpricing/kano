@@ -239,6 +239,8 @@ with tab2:
                                 "Feature": feature,
                                 "Kano Classification": category
                             })
+                    else:
+                        st.warning(f"⚠️ Invalid JSON response at index {i+1}, skipping entry.")
                 except json.JSONDecodeError as e:
                     st.warning(f"❌ JSON parsing error at index {i+1}: {e}")
                     continue
