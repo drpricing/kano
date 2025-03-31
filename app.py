@@ -247,3 +247,4 @@ with tab2:
                 st.dataframe(kano_df)
             else:
                 st.warning("🚨 No valid Kano classifications found.")
+
