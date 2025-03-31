@@ -121,7 +121,7 @@ with tab1:
                                     Please return the ratings in the following format:
                                     {"feature_name": {"functional": {"rating": X}, "dysfunctional": {"rating": X}}}
                                 """},
-                                {"role": "user", "content": f"Persona: {row['Persona']} | Features: {features}"}
+                                {"role": "user", "content": f"Features: {features}"}
                             ],
                             temperature=0
                         )
@@ -239,8 +239,6 @@ with tab2:
                                 "Feature": feature,
                                 "Kano Classification": category
                             })
-                    else:
-                        st.warning(f"⚠️ Invalid JSON response at index {i+1}, skipping entry.")
                 except json.JSONDecodeError as e:
                     st.warning(f"❌ JSON parsing error at index {i+1}: {e}")
                     continue
