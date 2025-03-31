@@ -180,6 +180,10 @@ with tab2:
                         st.warning(f"⚠️ Skipping empty response at index {i+1}.")
                         continue  
 
+                    # Debugging: Output raw response to identify the problem
+                    st.write(f"Raw response at index {i+1}: {resp}")
+
+                    # Try parsing the JSON data
                     match = re.search(r"\{.*\}", resp, re.DOTALL)
                     if not match:
                         st.warning(f"⚠️ No valid JSON detected in response at index {i+1}. Skipping.")
@@ -187,6 +191,7 @@ with tab2:
                     
                     parsed_json = json.loads(match.group())
 
+                    # Check if the parsed JSON contains valid feature data
                     if "features" not in parsed_json or not isinstance(parsed_json["features"], list):
                         st.warning(f"⚠️ Unexpected response format at index {i+1}: {parsed_json}")
                         continue  
@@ -208,6 +213,7 @@ with tab2:
 
                 except json.JSONDecodeError as e:
                     st.warning(f"❌ JSON parsing error at index {i+1}: {e}")
+                    continue
 
             if classifications:
                 kano_df = pd.DataFrame(classifications)
