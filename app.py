@@ -137,6 +137,9 @@ with tab1:
             st.session_state.experiment_complete = True
             st.success("✅ Survey completed! View results in 'Results'.")
 
+import json
+import re
+
 # --- TAB 2: Results ---
 with tab2:
     if not st.session_state.experiment_complete:
@@ -183,33 +186,35 @@ with tab2:
                     # Debugging: Output raw response to identify the problem
                     st.write(f"Raw response at index {i+1}: {resp}")
 
-                    # Try parsing the JSON data
-                    match = re.search(r"\{.*\}", resp, re.DOTALL)
-                    if not match:
+                    # Split the raw response into individual JSON objects
+                    json_objects = re.findall(r"\{.*?\}", resp, re.DOTALL)
+                    
+                    if not json_objects:
                         st.warning(f"⚠️ No valid JSON detected in response at index {i+1}. Skipping.")
                         continue
                     
-                    parsed_json = json.loads(match.group())
+                    for json_obj in json_objects:
+                        parsed_json = json.loads(json_obj)
 
-                    # Check if the parsed JSON contains valid feature data
-                    if "features" not in parsed_json or not isinstance(parsed_json["features"], list):
-                        st.warning(f"⚠️ Unexpected response format at index {i+1}: {parsed_json}")
-                        continue  
+                        # Check if the parsed JSON contains valid feature data
+                        if "features" not in parsed_json or not isinstance(parsed_json["features"], list):
+                            st.warning(f"⚠️ Unexpected response format at index {i+1}: {parsed_json}")
+                            continue  
 
-                    for feat_obj in parsed_json["features"]:
-                        if "feature" in feat_obj and "functional" in feat_obj and "dysfunctional" in feat_obj:
-                            f_score = rating_map.get(str(feat_obj["functional"]["rating"]).strip(), None)
-                            d_score = rating_map.get(str(feat_obj["dysfunctional"]["rating"]).strip(), None)
+                        for feat_obj in parsed_json["features"]:
+                            if "feature" in feat_obj and "functional" in feat_obj and "dysfunctional" in feat_obj:
+                                f_score = rating_map.get(str(feat_obj["functional"]["rating"]).strip(), None)
+                                d_score = rating_map.get(str(feat_obj["dysfunctional"]["rating"]).strip(), None)
 
-                            if f_score is None or d_score is None:
-                                st.warning(f"⚠️ Invalid scores at index {i+1}. Skipping.")
-                                continue
+                                if f_score is None or d_score is None:
+                                    st.warning(f"⚠️ Invalid scores at index {i+1}. Skipping.")
+                                    continue
 
-                            category = classify_kano(f_score, d_score)
-                            classifications.append({
-                                "Feature": feat_obj["feature"],
-                                "Kano Classification": category
-                            })
+                                category = classify_kano(f_score, d_score)
+                                classifications.append({
+                                    "Feature": feat_obj["feature"],
+                                    "Kano Classification": category
+                                })
 
                 except json.JSONDecodeError as e:
                     st.warning(f"❌ JSON parsing error at index {i+1}: {e}")
