@@ -178,16 +178,22 @@ with tab2:
     else:
         st.header("Results")
         
-        # Toggle to show persona details
-        show_persona = st.checkbox("Show Persona Details", value=False)
-        
-        st.write("### Respondent Profiles")
-        profiles_df = st.session_state.results["profiles"].copy()
-        profiles_df.index += 1  
-        if show_persona:
-            st.dataframe(profiles_df)
-        else:
-            st.dataframe(profiles_df.drop(columns=["Persona"]))
+	# Toggle to show persona details
+	show_persona = st.checkbox("Show Persona Details", value=False)
+	
+	st.write("### Respondent Profiles")
+	
+	# Ensure profiles_df exists and has the correct data
+	if "profiles" in st.session_state.results and not st.session_state.results["profiles"].empty:
+	    profiles_df = st.session_state.results["profiles"].copy()
+	    profiles_df.index = profiles_df.index + 1  # Start index at 1 for better readability
+	
+	    if not show_persona and "Persona" in profiles_df.columns:
+	        profiles_df = profiles_df.drop(columns=["Persona"])
+	
+	    st.dataframe(profiles_df)
+	else:
+	    st.warning("No respondent profiles available. Please generate profiles first.")
         
         # Process Kano ratings and classification
         kano_responses = st.session_state.results["responses"]
