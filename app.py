@@ -74,7 +74,7 @@ with tab1:
             RETRY_DELAY = 10
             personas = []
 
-            # Fetch persona descriptions (Optional, not needed for new approach)
+            # Fetch persona descriptions
             for i, row in profiles_df.iterrows():
                 progress_bar.progress((i + 1) / (num_respondents * 2))
                 retries = 0
@@ -99,7 +99,7 @@ with tab1:
             features = [f.strip() for f in features_input.splitlines() if f.strip()]
             kano_responses = []
 
-            # Fetch Kano responses (Only ratings for features, not personas)
+            # Fetch Kano responses (Ensuring Both Functional & Dysfunctional Ratings)
             for i, row in profiles_df.iterrows():
                 progress_bar.progress((i + 1 + num_respondents) / (num_respondents * 2))
                 retries = 0
@@ -120,7 +120,8 @@ with tab1:
                                     and one for the dysfunctional condition (feature absent).
                                     Please return the ratings in the following format:
                                     {"feature_name": {"functional": {"rating": X}, "dysfunctional": {"rating": X}}}
-                                """}
+                                """},
+                                {"role": "user", "content": f"Persona: {row['Persona']} | Features: {features}"}
                             ],
                             temperature=0
                         )
@@ -136,43 +137,6 @@ with tab1:
             st.session_state.experiment_complete = True
             st.success("✅ Survey completed! View results in 'Results'.")
 
-# --- Helper function to clean and parse JSON ---
-def clean_and_parse_json(raw_response):
-    """Cleans up raw response and attempts to parse it as valid JSON."""
-    # Log the raw response for debugging
-    st.write(f"Raw response: {raw_response}")  # Log the raw response for debugging
-    
-    # Check if the response is empty or None
-    if not raw_response.strip():
-        st.warning("⚠️ Empty response detected. Skipping this entry.")
-        return None
-    
-    # Extract JSON using a regular expression that looks for curly braces ({}).
-    # This will find the first JSON-like block in the response.
-    json_pattern = r'(\{.*\})'
-    matches = re.findall(json_pattern, raw_response, re.DOTALL)
-
-    # If no matches, return warning and None
-    if not matches:
-        st.warning("❌ No valid JSON found in the response.")
-        return None
-    
-    # Attempt to parse each JSON block and return a list of parsed JSON objects
-    parsed_jsons = []
-    for json_str in matches:
-        try:
-            parsed_json = json.loads(json_str)
-            parsed_jsons.append(parsed_json)
-        except json.JSONDecodeError as e:
-            st.warning(f"❌ JSON parsing error: {e}")
-            continue
-    
-    # If we have parsed JSON objects, return them, otherwise return None
-    if parsed_jsons:
-        return parsed_jsons
-    else:
-        st.warning("❌ No valid JSON could be parsed from the response.")
-        return None
 
 # --- TAB 2: Results ---
 with tab2:
