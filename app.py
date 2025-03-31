@@ -82,10 +82,13 @@ with tab1:
                     try:
                         response = client.chat.completions.create(
                             model="llama3-70b-8192",
-                            messages=[
-                                {"role": "system", "content": "Create a customer persona based on:"},
-                                {"role": "user", "content": f"Age: {row['Age']}; Gender: {row['Gender']}"}
-                            ],
+                            messages=[{
+                                "role": "system", 
+                                "content": "Create a customer persona based on:"
+                            },{
+                                "role": "user", 
+                                "content": f"Age: {row['Age']}; Gender: {row['Gender']}"
+                            }],
                             temperature=0
                         )
                         personas.append(response.choices[0].message.content)
@@ -107,10 +110,13 @@ with tab1:
                     try:
                         response = client.chat.completions.create(
                             model="llama3-70b-8192",
-                            messages=[
-                                {"role": "system", "content": "Return a JSON object evaluating each feature when present (functional) and absent (dysfunctional)."},
-                                {"role": "user", "content": f"Persona: {row['Persona']} | Features: {features}"}
-                            ],
+                            messages=[{
+                                "role": "system", 
+                                "content": "Return a JSON object evaluating each feature numerically with ratings for both 'when present' and 'when absent' conditions."
+                            },{
+                                "role": "user", 
+                                "content": f"Persona: {row['Persona']} | Features: {features}"
+                            }],
                             temperature=0
                         )
                         kano_responses.append(response.choices[0].message.content)
@@ -171,14 +177,15 @@ with tab2:
                 
                 parsed_json = json.loads(match.group())
 
-                if "features" not in parsed_json or not isinstance(parsed_json["features"], list):
+                if "features" not in parsed_json or not isinstance(parsed_json["features"], dict):
                     st.warning(f"⚠️ Unexpected response format at index {i+1}: {parsed_json}")
                     continue  
 
-                for feat_obj in parsed_json["features"]:
-                    if "name" in feat_obj and "when_present" in feat_obj and "when_absent" in feat_obj:
-                        f_score = rating_map.get(str(feat_obj["when_present"]).strip(), None)
-                        d_score = rating_map.get(str(feat_obj["when_absent"]).strip(), None)
+                for feat_name, feat_obj in parsed_json["features"].items():
+                    if "functional" in feat_obj and "dysfunctional" in feat_obj:
+                        # Assumed that functional and dysfunctional ratings come as "I like it", etc.
+                        f_score = rating_map.get(feat_obj["functional"], None)
+                        d_score = rating_map.get(feat_obj["dysfunctional"], None)
 
                         if f_score is None or d_score is None:
                             st.warning(f"⚠️ Invalid scores at index {i+1}. Skipping.")
@@ -186,7 +193,7 @@ with tab2:
 
                         category = classify_kano(f_score, d_score)
                         classifications.append({
-                            "Feature": feat_obj["name"],
+                            "Feature": feat_name,
                             "Kano Classification": category
                         })
 
