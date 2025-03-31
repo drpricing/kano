@@ -119,7 +119,7 @@ with tab1:
                                     For each feature, you need to provide two ratings: one for the functional condition (feature present)
                                     and one for the dysfunctional condition (feature absent).
                                     Please return the ratings in the following format:
-                                    {"feature_name": {"functional": {"rating": X, "comment": "description"}, "dysfunctional": {"rating": X, "comment": "description"}}}
+                                    {"feature_name": {"functional": {"rating": X}, "dysfunctional": {"rating": X}}}
                                 """},
                                 {"role": "user", "content": f"Persona: {row['Persona']} | Features: {features}"}
                             ],
