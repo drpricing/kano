@@ -54,7 +54,7 @@ with tab1:
     features_input = st.text_area('List features (one per line)', height=150, key="features")
     
     st.subheader("Number of Synthetic Respondents")
-    num_respondents = st.number_input('Number of respondents', min_value=1, max_value=100, value=8, key="num_respondents")
+    num_respondents = st.number_input('Number of respondents', min_value=1, max_value=100, value=7, key="num_respondents")
     
     if st.button('🚀 Start Survey', type="primary"):
         if not api_key:
