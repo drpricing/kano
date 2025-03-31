@@ -99,7 +99,7 @@ with tab1:
             features = [f.strip() for f in features_input.splitlines() if f.strip()]
             kano_responses = []
 
-            # Fetch Kano responses
+            # Fetch Kano responses (Ensuring Both Functional & Dysfunctional Ratings)
             for i, row in profiles_df.iterrows():
                 progress_bar.progress((i + 1 + num_respondents) / (num_respondents * 2))
                 retries = 0
@@ -108,8 +108,8 @@ with tab1:
                         response = client.chat.completions.create(
                             model="llama3-70b-8192",
                             messages=[
-                                {"role": "system", "content": "Only return a JSON object as described."},
-                                {"role": "user", "content": f"Evaluate features based on: {row['Persona']}"}
+                                {"role": "system", "content": "Return a JSON object evaluating each feature when present (functional) and absent (dysfunctional)."},
+                                {"role": "user", "content": f"Persona: {row['Persona']} | Features: {features}"}
                             ],
                             temperature=0
                         )
@@ -176,9 +176,9 @@ with tab2:
                     continue  
 
                 for feat_obj in parsed_json["features"]:
-                    if "name" in feat_obj and "functional" in feat_obj and "dysfunctional" in feat_obj:
-                        f_score = rating_map.get(str(feat_obj["functional"]).strip(), None)
-                        d_score = rating_map.get(str(feat_obj["dysfunctional"]).strip(), None)
+                    if "name" in feat_obj and "when_present" in feat_obj and "when_absent" in feat_obj:
+                        f_score = rating_map.get(str(feat_obj["when_present"]).strip(), None)
+                        d_score = rating_map.get(str(feat_obj["when_absent"]).strip(), None)
 
                         if f_score is None or d_score is None:
                             st.warning(f"⚠️ Invalid scores at index {i+1}. Skipping.")
