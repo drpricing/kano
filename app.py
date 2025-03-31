@@ -94,7 +94,7 @@ with tab1:
                                 {"role": "system", "content": "Create a customer persona based on:"},
                                 {"role": "user", "content": f"Age: {row['Age']}; Gender: {row['Gender']}"}
                             ],
-                            temperature=0
+                            temperature=0.1
                         )
                         personas.append(persona_resp.choices[0].message.content)
                         time.sleep(2)
