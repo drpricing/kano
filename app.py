@@ -28,7 +28,7 @@ with st.sidebar:
 st.title('🤖 Kano Model Feature Evaluation')
 tab1, tab2 = st.tabs(["Setup", "Results"])
 
-# Setup Tab
+### TAB 1: SURVEY SETUP ###
 with tab1:
     st.header("Setup")
     if 'start_experiment' not in st.session_state:
@@ -99,8 +99,27 @@ with tab1:
                         response = client.chat.completions.create(
                             model="llama3-70b-8192",
                             messages=[
-                                {"role": "system", "content": "Only return a JSON object as described."},
-                                {"role": "user", "content": f"Evaluate features based on: {row['Persona']}"}
+                                {"role": "system", "content": "You are a Kano Model survey assistant. Return structured JSON for feature evaluations."},
+                                {"role": "user", "content": f"""
+Given this customer profile: 
+{row['Persona']}
+
+Evaluate the following features using the Kano model:
+
+{features}
+
+Return JSON with this format:
+{{
+    "features": [
+        {{
+            "name": "Feature Name",
+            "when_present": "Delighter | Must-Have | Performance | Indifferent | Reverse",
+            "when_absent": "Delighter | Must-Have | Performance | Indifferent | Reverse",
+            "importance": 1-5
+        }}
+    ]
+}}
+                                """}
                             ],
                             temperature=0
                         )
@@ -116,7 +135,7 @@ with tab1:
             st.session_state.experiment_complete = True
             st.success("✅ Survey completed! View results in 'Results'.")
 
-# Results Tab
+### TAB 2: RESULTS ANALYSIS ###
 with tab2:
     if not st.session_state.experiment_complete:
         st.info("Run the survey first.")
@@ -127,63 +146,45 @@ with tab2:
         profiles_df = st.session_state.results["profiles"].copy()
         profiles_df.index = profiles_df.index + 1  # Fix indexing to start from 1
         st.dataframe(profiles_df)
-        
+
         st.write("### Kano Evaluations")
         kano_responses = st.session_state.results["responses"]
         
-        if kano_responses:
-            classifications = []  # Initialize classifications list
+        classifications = []
+        for resp in kano_responses:
+            try:
+                if not resp.strip():
+                    st.warning("Skipping empty response.")
+                    continue  # Skip if empty
 
-            for resp in kano_responses:
-                try:
-                    # Debugging output
-                    if 'debug_response_shown' not in st.session_state:
-                        st.write("📌 Debug: Example API Response", resp)
-                        st.session_state.debug_response_shown = True
+                parsed_json = json.loads(resp)  # Parse JSON
 
-                    # Check if response is not empty
-                    if not resp.strip():
-                        st.warning("Skipping empty response.")
-                        continue  # Skip if the response is empty
-                    
-                    parsed_json = json.loads(resp)
+                if "features" not in parsed_json or not isinstance(parsed_json["features"], list):
+                    st.warning(f"Unexpected response format: {parsed_json}")
+                    continue  # Skip if invalid
 
-                    if "features" not in parsed_json:
-                        st.warning(f"Missing 'features' in response: {parsed_json}")
-                        continue  # Skip if 'features' is missing
+                for feat_obj in parsed_json["features"]:
+                    if "name" in feat_obj and "when_present" in feat_obj and "importance" in feat_obj:
+                        classifications.append({
+                            "Feature": feat_obj["name"],
+                            "Kano Classification": feat_obj["when_present"],
+                            "Importance": feat_obj["importance"]
+                        })
+                    else:
+                        st.warning(f"Skipping malformed entry: {feat_obj}")
 
-                    for feat_obj in parsed_json.get("features", []):
-                        result = handle_kano_response(feat_obj)
-                        if result:
-                            classifications.append(result)
-                        else:
-                            st.warning(f"Skipping invalid entry: {feat_obj}")
+            except json.JSONDecodeError as e:
+                st.warning(f"JSON parsing error: {e}")
 
-                except json.JSONDecodeError as e:
-                    st.warning(f"JSON parsing error: {e}")
+        if classifications:
+            kano_df = pd.DataFrame(classifications)
+            kano_df.index = kano_df.index + 1  # Fix indexing
+            st.dataframe(kano_df)
+            
+            fig = px.bar(kano_df, x="Feature", y="Importance", color="Kano Classification", title="Kano Model Feature Importance")
+            st.plotly_chart(fig)
 
-            # Display results if valid classifications exist
-            if classifications:
-                kano_df = pd.DataFrame(classifications)
-                kano_df.index = kano_df.index + 1  # Fix indexing
-                st.dataframe(kano_df)
-
-                # Add Plotly diagram: Kano classification distribution
-                kano_class_count = kano_df['Kano Classification'].value_counts()
-                fig = px.pie(kano_class_count, names=kano_class_count.index, values=kano_class_count.values, 
-                             title="Kano Classification Distribution")
-                st.plotly_chart(fig)
-
-                # Add Plotly diagram: Feature Importance
-                importance_data = kano_df.groupby("Feature")["Kano Classification"].count().sort_values(ascending=False)
-                fig2 = px.bar(importance_data, x=importance_data.index, y=importance_data.values,
-                              title="Feature Importance (Number of Evaluations)")
-                st.plotly_chart(fig2)
-
-                # Add download button for the results
-                csv = kano_df.to_csv(index=False).encode('utf-8')
-                st.download_button("📥 Download Kano Results", data=csv, file_name="kano_results.csv", mime="text/csv")
-            else:
-                st.warning("No valid Kano classifications found. Ensure survey responses are properly formatted.")
+            csv = kano_df.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Download Kano Results", data=csv, file_name="kano_results.csv", mime="text/csv")
         else:
-            st.warning("No Kano responses found. Please ensure the survey was completed successfully.")
+            st.warning("No valid Kano classifications found. Ensure survey responses are properly formatted.")
