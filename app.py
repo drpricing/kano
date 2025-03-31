@@ -258,7 +258,7 @@ with tab2:
                     y="Count",
                     color="Kano Classification",
                     text="Count",
-                    title="Stacked Kano Classification Counts per Feature",
+                    title="Kano Classification Counts per Feature",
                     barmode="stack"
                 )
                 fig.update_layout(
