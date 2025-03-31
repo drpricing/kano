@@ -223,6 +223,9 @@ with tab2:
                         except json.JSONDecodeError as e:
                             st.warning(f"❌ JSON parsing error at index {i+1}: {e}")
                             continue
+                        except Exception as e:
+                            st.warning(f"⚠️ Unexpected error parsing response at index {i+1}: {e}")
+                            continue
 
             if classifications:
                 kano_df = pd.DataFrame(classifications)
