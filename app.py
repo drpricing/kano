@@ -19,14 +19,14 @@ with st.sidebar:
     st.markdown("### How does it work?")
     st.markdown(
         """
-        1. In the **Setup** tab, you enter your product details and feature list.
-        2. Synthetic respondents (with hidden persona details) evaluate the features.
-        3. In **Results**, you see Kano evaluation statistics, classifications in tables and diagrams.
+        1. In the **Setup** tab, enter your product details and feature list.
+        2. Synthetic respondents evaluate the features.
+        3. In **Results**, view Kano statistics, classifications, and diagrams.
         """
     )
     st.markdown("---")
     st.markdown("### About")
-    st.markdown("This tool uses a Kano Model approach to evaluate product features.")
+    st.markdown("This tool uses the Kano Model to evaluate product features.")
 
 st.title('🤖 Kano Model Feature Evaluation')
 
@@ -39,12 +39,9 @@ with tab1:
     st.header("Setup")
     
     # Initialize session state if not present
-    if 'start_experiment' not in st.session_state:
-        st.session_state.start_experiment = False
-    if 'experiment_complete' not in st.session_state:
-        st.session_state.experiment_complete = False
-    if 'results' not in st.session_state:
-        st.session_state.results = None
+    for key in ["start_experiment", "experiment_complete", "results"]:
+        if key not in st.session_state:
+            st.session_state[key] = False if key != "results" else None
 
     # Input fields
     st.subheader("Product Name")
@@ -77,13 +74,11 @@ if st.session_state.start_experiment:
         client = Groq(api_key=api_key)
         
         profiles = []
-        
+        personas = []
         MAX_RETRIES = 3
         RETRY_DELAY = 10
         
-        personas = []
-        
-        # Generate synthetic respondent profiles (with hidden personas)
+        # Generate synthetic respondent profiles
         for i in range(num_respondents):
             progress_bar.progress((i + 1) / (num_respondents * 2))
             retries = 0
@@ -107,7 +102,7 @@ if st.session_state.start_experiment:
 
         profiles_df = pd.DataFrame(profiles)
         
-        # Generate hidden persona descriptions (backend only)
+        # Generate hidden persona descriptions
         for i, row in profiles_df.iterrows():
             progress_bar.progress((i + 1 + num_respondents) / (num_respondents * 2))
             retries = 0
@@ -128,14 +123,13 @@ if st.session_state.start_experiment:
                     retries += 1
                     time.sleep(RETRY_DELAY)
 
-        profiles_df["Persona"] = personas  # Stored in backend; not shown to user by default
-        
-        # Prepare feature list
+        if personas:
+            profiles_df["Persona"] = personas  
+
         features = [f.strip() for f in features_input.splitlines() if f.strip()]
-        
         kano_responses = []
-        
-        # Fetch Kano ratings for each synthetic respondent (ratings only)
+
+        # Fetch Kano ratings
         for i, row in profiles_df.iterrows():
             progress_bar.progress((i + 1 + num_respondents) / (num_respondents * 2))
             retries = 0
@@ -145,17 +139,7 @@ if st.session_state.start_experiment:
                         model="llama3-70b-8192",
                         messages=[
                             {"role": "system", "content": """
-                            You are tasked with evaluating product features using the Kano model.Your preferences are influenced by your persona.
-                            For each feature provided, rate it under two conditions:
-                            - Functional condition (feature present)
-                            - Dysfunctional condition (feature absent)
-                            Use a scale of 1 to 5 where:
-                            1: I like it,
-                            2: I expect it,
-                            3: I am indifferent,
-                            4: I can live with it,
-                            5: I dislike it.
-                            Return ONLY the ratings in the following JSON format:
+                            Evaluate product features using the Kano model. Return JSON format:
                             {"feature_name": {"functional": {"rating": X}, "dysfunctional": {"rating": X}}}
                             """},
                             {"role": "user", "content": f"Features: {features}"}
@@ -170,32 +154,9 @@ if st.session_state.start_experiment:
                     time.sleep(RETRY_DELAY)
 
         progress_bar.progress(1.0)
-
         st.session_state.results = {"profiles": profiles_df, "responses": kano_responses, "features": features}
         st.session_state.experiment_complete = True
-
         st.success("✅ Survey completed! View results in 'Results'.")
-
-# -----------------------------
-# Helper function to parse JSON from ratings-only output
-# -----------------------------
-def clean_and_parse_json(raw_response):
-    """Extracts and parses the first JSON object in the response (ratings only)."""
-    if not raw_response.strip():
-        st.warning("⚠️ Empty response detected. Skipping this entry.")
-        return None
-    json_start = raw_response.find("{")
-    json_end = raw_response.rfind("}") + 1
-    if json_start == -1 or json_end == -1:
-        st.warning("❌ No valid JSON found in the response.")
-        return None
-    json_part = raw_response[json_start:json_end].strip()
-    try:
-        parsed = json.loads(json_part)
-        return parsed
-    except json.JSONDecodeError as e:
-        st.warning(f"❌ JSON parsing error: {e}")
-        return None
 
 # -----------------------------
 # TAB 2: Results
@@ -205,101 +166,58 @@ with tab2:
         st.info("Run the survey first.")
     else:
         st.header("Results")
-        
-        # Toggle to show persona details
         show_persona = st.checkbox("Show Persona Details", value=False)
         
         st.write("### Respondent Profiles")
         profiles_df = st.session_state.results["profiles"].copy()
-        profiles_df.index += 1 
-        if show_persona:
-            st.dataframe(profiles_df)
-        else:
-            st.dataframe(profiles_df.drop(columns=["Persona"]))
+        profiles_df.index += 1  
         
-        # Process Kano ratings and classification
+        if not show_persona and "Persona" in profiles_df.columns:
+            profiles_df = profiles_df.drop(columns=["Persona"])
+
+        st.dataframe(profiles_df)
+        
         kano_responses = st.session_state.results["responses"]
-        features = st.session_state.results["features"]
-        if not kano_responses:
-            st.warning("❌ No Kano responses found. Please ensure the survey ran successfully.")
-        else:
-            rating_map = {"1": 1, "2": 2, "3": 3, "4": 4, "5": 5}
-            def classify_kano(f, d):
-                if f == 1 and d >= 4:
-                    return "Excitement"
-                elif f == 2 and d == 5:
-                    return "Must-Have"
-                elif f == 3 and d == 3:
-                    return "Indifferent"
-                else:
-                    return "Expected"
-            classifications = []
-            for i, resp in enumerate(kano_responses):
-                parsed_json = clean_and_parse_json(resp)
-                if parsed_json is None:
-                    st.warning(f"⚠️ Invalid JSON response at index {i+1}. Skipping.")
-                    continue
+        classifications = []
+
+        for i, resp in enumerate(kano_responses):
+            try:
+                parsed_json = json.loads(resp)
                 for feature, data in parsed_json.items():
-                    if "functional" in data and "dysfunctional" in data:
-                        try:
-                            f_score = int(data["functional"]["rating"])
-                            d_score = int(data["dysfunctional"]["rating"])
-                        except (ValueError, KeyError):
-                            st.warning(f"⚠️ Unable to parse ratings for feature {feature} at index {i+1}. Skipping.")
-                            continue
-                        net_score = f_score - d_score
-                        category = classify_kano(f_score, d_score)
-                        classifications.append({
-                            "Feature": feature,
-                            "Rating (Present)": f_score,
-                            "Rating (Missing)": d_score,
-                            "Net Kano Score": net_score,
-                            "Kano Classification": category
-                        })
-                    else:
-                        st.warning(f"⚠️ Missing rating details for feature {feature} at index {i+1}. Skipping.")
-            if classifications:
-                kano_df = pd.DataFrame(classifications)
-                kano_df.index = range(1, len(kano_df) + 1)  # Numbering starts at 1
-                st.write("#### Kano Classification Table")
-                st.dataframe(kano_df)
-                
-                st.markdown(
-                    """
-                    **Scale Explanation:** Ratings are on a scale from 1 to 5, where 1 means 'I like it', 2 means 'I expect it', 3 means 'I am indifferent', 4 means 'I can live with it', and 5 means 'I dislike it'. 
-                    
-                    **Classification Rules:** 'Excitement' is assigned when the functional rating is 1 and the dysfunctional rating is 4 or higher; 
-                    'Must-Have' is when the functional rating is 2 and the dysfunctional rating is 5; 'Indifferent' when both ratings are 3; 
-                    and 'Expected' for any other combination. The Net Kano Score is computed as (Rating (Present) - Rating (Missing)).
-                    """
-                )
-                
-                # Create frequency dataframe for the diagram
-                freq_df = kano_df.groupby(["Feature", "Kano Classification"]).size().reset_index(name="Count")
-                # Generate a stacked column chart
-                fig = px.bar(
-                    freq_df,
-                    x="Feature",
-                    y="Count",
-                    color="Kano Classification",
-                    text="Count",
-                    title="Kano Classification Counts per Feature",
-                    barmode="stack"
-                )
-                fig.update_layout(
-                    xaxis_title="Feature",
-                    yaxis_title="Number of Responses",
-                    legend_title="Kano Classification",
-                    uniformtext_minsize=12,
-                    uniformtext_mode='hide'
-                )
-                st.plotly_chart(fig)
-                
-                # Download button for CSV export
-                csv_data = kano_df.to_csv(index=True).encode('utf-8')
-                st.download_button(label="Download Kano Evaluation Data",
-                                   data=csv_data,
-                                   file_name=f"kano_evaluation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                                   mime="text/csv")
-            else:
-                st.warning("🚨 No valid Kano classifications found.")
+                    f_score = int(data["functional"]["rating"])
+                    d_score = int(data["dysfunctional"]["rating"])
+                    category = "Excitement" if f_score == 1 and d_score >= 4 else "Expected"
+                    classifications.append({"Feature": feature, "Functional": f_score, "Dysfunctional": d_score, "Kano": category})
+            except (ValueError, KeyError, json.JSONDecodeError):
+                continue
+
+        if classifications:
+            kano_df = pd.DataFrame(classifications)
+            st.write("### Kano Classification Table")
+            st.dataframe(kano_df)
+
+            freq_df = kano_df.groupby(["Feature", "Kano"]).size().reset_index(name="Count")
+
+            fig = px.bar(
+            freq_df,
+            x="Feature",
+            y="Count",
+            color="Kano",
+            text="Count",
+            title="Kano Classification Counts per Feature",
+            barmode="stack"  # Ensures a stacked column chart
+            )
+        
+            fig.update_layout(
+            xaxis_title="Feature",
+            yaxis_title="Number of Responses",
+            legend_title="Kano Classification",
+            uniformtext_minsize=12,
+            uniformtext_mode='hide'
+            )
+        
+            st.plotly_chart(fig)
+
+            st.download_button("Download Kano Data", kano_df.to_csv().encode(), "kano_results.csv")
+        else:
+            st.warning("🚨 No valid Kano classifications found.")
