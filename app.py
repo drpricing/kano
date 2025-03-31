@@ -74,7 +74,7 @@ with tab1:
             RETRY_DELAY = 10
             personas = []
 
-            # Fetch persona descriptions
+            # Fetch persona descriptions (Optional, not needed for new approach)
             for i, row in profiles_df.iterrows():
                 progress_bar.progress((i + 1) / (num_respondents * 2))
                 retries = 0
@@ -99,7 +99,7 @@ with tab1:
             features = [f.strip() for f in features_input.splitlines() if f.strip()]
             kano_responses = []
 
-            # Fetch Kano responses (Ensuring Both Functional & Dysfunctional Ratings)
+            # Fetch Kano responses (Only ratings for features, not personas)
             for i, row in profiles_df.iterrows():
                 progress_bar.progress((i + 1 + num_respondents) / (num_respondents * 2))
                 retries = 0
@@ -121,7 +121,7 @@ with tab1:
                                     Please return the ratings in the following format:
                                     {"feature_name": {"functional": {"rating": X}, "dysfunctional": {"rating": X}}}
                                 """},
-                                {"role": "user", "content": f"Features: {features}"}
+                                {"role": "user", "content": f"Please evaluate these features: {features}"}
                             ],
                             temperature=0
                         )
