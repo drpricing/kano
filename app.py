@@ -1,39 +1,60 @@
 import random
 import pandas as pd
 import streamlit as st
+import os
 import json
 import time
+import re
+import numpy as np
 import plotly.express as px
+from datetime import datetime
 from groq import Groq
 
 st.set_page_config(page_title="Kano Model Feature Evaluation", page_icon="🤖", layout="wide")
 
-# Sidebar: API Key Setup
+# Sidebar
 with st.sidebar:
     st.title("⚙️ Instructions")
     api_key = st.secrets["groq"]["api_key"]
+    st.markdown("---")
+    st.markdown("### How does it work?")
+    st.markdown("""
+    1. Setup the survey in the **Setup** tab. 
+    2. Analyze results in **Results**.
+    """)
+    st.markdown("---")
+    st.markdown("### About")
     st.markdown("This tool evaluates features using a Kano Model approach.")
 
 st.title('🤖 Kano Model Feature Evaluation')
 tab1, tab2 = st.tabs(["Setup", "Results"])
 
-### TAB 1: SURVEY SETUP ###
+# --- TAB 1: Setup ---
 with tab1:
     st.header("Setup")
-    st.session_state.setdefault("start_experiment", False)
-    st.session_state.setdefault("experiment_complete", False)
-    st.session_state.setdefault("results", None)
+    
+    if 'start_experiment' not in st.session_state:
+        st.session_state.start_experiment = False
+    if 'experiment_complete' not in st.session_state:
+        st.session_state.experiment_complete = False
+    if 'results' not in st.session_state:
+        st.session_state.results = None
 
-    product_name = st.text_input('Product Name', key="product_name")
-    target_customers = st.text_area('Target Customers', height=150, key="target_customers")
+    # Inputs
+    st.subheader("Product Name")
+    product_name = st.text_input('Enter product name', key="product_name")
+    st.subheader("Target Customers")
+    target_customers = st.text_area('Describe your target customers', height=150, key="target_customers")
+    st.subheader("Features")
     features_input = st.text_area('List features (one per line)', height=150, key="features")
+    st.subheader("Number of Synthetic Respondents")
     num_respondents = st.number_input('Number of respondents', min_value=1, max_value=100, value=8, key="num_respondents")
-
+    
     if st.button('🚀 Start Survey', type="primary"):
         if not api_key:
-            st.error("❌ API key missing. Please provide it in the sidebar.")
+            st.error("Please provide your Groq API key in the sidebar.")
         elif not product_name or not target_customers or not features_input:
-            st.error("❌ All fields are required.")
+            st.error("Please fill in all required fields.")
         else:
             st.session_state.start_experiment = True
             st.session_state.experiment_complete = False
@@ -43,35 +64,31 @@ with tab1:
             progress_bar = st.progress(0)
             client = Groq(api_key=api_key)
 
-            # Generate personas
-            profiles = [{"Age": random.randint(18, 78), "Gender": random.choice(["Male", "Female", "Unknown"])} for _ in range(num_respondents)]
+            # Generate random respondent profiles
+            ages = range(18, 78)
+            genders = ["Male", "Female", "Unknown"]
+            profiles = [{"Age": random.choice(ages), "Gender": random.choice(genders)} for _ in range(num_respondents)]
             profiles_df = pd.DataFrame(profiles)
 
             MAX_RETRIES = 3
             RETRY_DELAY = 10
             personas = []
 
-            # Generate Personas via API
+            # Fetch persona descriptions
             for i, row in profiles_df.iterrows():
-                progress_bar.progress(i / (2 * num_respondents))
+                progress_bar.progress((i + 1) / (num_respondents * 2))
                 retries = 0
                 while retries < MAX_RETRIES:
                     try:
                         response = client.chat.completions.create(
                             model="llama3-70b-8192",
                             messages=[
-                                {"role": "system", "content": "Create a customer persona with structured JSON."},
-                                {"role": "user", "content": f"Age: {row['Age']}; Gender: {row['Gender']} Return JSON format: {{'persona': 'Persona description here'}}"}
+                                {"role": "system", "content": "Create a customer persona based on:"},
+                                {"role": "user", "content": f"Age: {row['Age']}; Gender: {row['Gender']}"}
                             ],
                             temperature=0
                         )
-                        response_text = response.choices[0].message.content if response.choices else ""
-                        
-                        if response_text.strip():
-                            personas.append(response_text)
-                        else:
-                            st.warning(f"⚠️ Empty persona response for respondent {i+1}, skipping.")
-
+                        personas.append(response.choices[0].message.content)
                         time.sleep(5)
                         break
                     except Exception:
@@ -82,62 +99,39 @@ with tab1:
             features = [f.strip() for f in features_input.splitlines() if f.strip()]
             kano_responses = []
 
-            # Generate Kano Responses via API
+            # Fetch Kano responses
             for i, row in profiles_df.iterrows():
-                progress_bar.progress((i + num_respondents) / (2 * num_respondents))
+                progress_bar.progress((i + 1 + num_respondents) / (num_respondents * 2))
                 retries = 0
                 while retries < MAX_RETRIES:
                     try:
                         response = client.chat.completions.create(
                             model="llama3-70b-8192",
                             messages=[
-                                {"role": "system", "content": "You are a Kano Model survey assistant. Return structured JSON."},
-                                {"role": "user", "content": f"""
-Given this customer profile: {row['Persona']}
-Evaluate these features using the Kano model:
-
-{features}
-
-Return valid JSON format:
-{{
-    "features": [
-        {{
-            "name": "Feature Name",
-            "when_present": "Delighter | Must-Have | Performance | Indifferent | Reverse",
-            "importance": 1-5
-        }}
-    ]
-}}
-                                """}
+                                {"role": "system", "content": "Only return a JSON object as described."},
+                                {"role": "user", "content": f"Evaluate features based on: {row['Persona']}"}
                             ],
                             temperature=0
                         )
-                        response_text = response.choices[0].message.content if response.choices else ""
-
-                        # Ensure non-empty response
-                        if response_text.strip():
-                            kano_responses.append(response_text)
-                        else:
-                            st.warning(f"⚠️ Empty Kano response for respondent {i+1}, skipping.")
-
+                        kano_responses.append(response.choices[0].message.content)
                         time.sleep(5)
                         break
                     except Exception:
                         retries += 1
                         time.sleep(RETRY_DELAY)
-            
-            progress_bar.progress(1.0)
+
+            progress_bar.progress(1.0)  
             st.session_state.results = {"profiles": profiles_df, "responses": kano_responses, "features": features}
             st.session_state.experiment_complete = True
             st.success("✅ Survey completed! View results in 'Results'.")
 
-### TAB 2: RESULTS ANALYSIS ###
+# --- TAB 2: Results ---
 with tab2:
     if not st.session_state.experiment_complete:
-        st.info("🚨 Run the survey first.")
+        st.info("Run the survey first.")
     else:
         st.header("Results")
-
+        
         st.write("### Respondent Profiles")
         profiles_df = st.session_state.results["profiles"].copy()
         profiles_df.index += 1  
@@ -146,41 +140,61 @@ with tab2:
         st.write("### Kano Evaluations")
         kano_responses = st.session_state.results["responses"]
 
+        rating_map = {
+            "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, 
+            "I like it": 1, "I expect it": 2, "I am indifferent": 3, 
+            "I can live with it": 4, "I dislike it": 5
+        }
+
+        def classify_kano(f, d):
+            if f == 1 and d >= 4:
+                return "Excitement"
+            elif f == 2 and d == 5:
+                return "Must-Have"
+            elif f == 3 and d == 3:
+                return "Indifferent"
+            else:
+                return "Expected"
+
         classifications = []
+        
         for i, resp in enumerate(kano_responses):
             try:
                 if not resp.strip():
                     st.warning(f"⚠️ Skipping empty response at index {i+1}.")
                     continue  
 
-                parsed_json = json.loads(resp)  
+                match = re.search(r"\{.*\}", resp, re.DOTALL)
+                if not match:
+                    st.warning(f"⚠️ No valid JSON detected in response at index {i+1}. Skipping.")
+                    continue
+                
+                parsed_json = json.loads(match.group())
 
                 if "features" not in parsed_json or not isinstance(parsed_json["features"], list):
                     st.warning(f"⚠️ Unexpected response format at index {i+1}: {parsed_json}")
                     continue  
 
                 for feat_obj in parsed_json["features"]:
-                    if "name" in feat_obj and "when_present" in feat_obj and "importance" in feat_obj:
+                    if "name" in feat_obj and "functional" in feat_obj and "dysfunctional" in feat_obj:
+                        f_score = rating_map.get(str(feat_obj["functional"]).strip(), None)
+                        d_score = rating_map.get(str(feat_obj["dysfunctional"]).strip(), None)
+
+                        if f_score is None or d_score is None:
+                            st.warning(f"⚠️ Invalid scores at index {i+1}. Skipping.")
+                            continue
+
+                        category = classify_kano(f_score, d_score)
                         classifications.append({
                             "Feature": feat_obj["name"],
-                            "Kano Classification": feat_obj["when_present"],
-                            "Importance": feat_obj["importance"]
+                            "Kano Classification": category
                         })
-                    else:
-                        st.warning(f"⚠️ Skipping malformed entry at index {i+1}: {feat_obj}")
 
             except json.JSONDecodeError as e:
                 st.warning(f"❌ JSON parsing error at index {i+1}: {e}")
 
         if classifications:
             kano_df = pd.DataFrame(classifications)
-            kano_df.index += 1
             st.dataframe(kano_df)
-            
-            fig = px.bar(kano_df, x="Feature", y="Importance", color="Kano Classification", title="Kano Model Feature Importance")
-            st.plotly_chart(fig)
-
-            csv = kano_df.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Download Kano Results", data=csv, file_name="kano_results.csv", mime="text/csv")
         else:
-            st.warning("🚨 No valid Kano classifications found. Ensure survey responses are properly formatted.")
+            st.warning("🚨 No valid Kano classifications found.")
