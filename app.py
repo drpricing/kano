@@ -151,62 +151,66 @@ with tab2:
 
         st.write("### Kano Evaluations")
         kano_responses = st.session_state.results["responses"]
-
-        rating_map = {
-            "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, 
-            "I like it": 1, "I expect it": 2, "I am indifferent": 3, 
-            "I can live with it": 4, "I dislike it": 5
-        }
-
-        def classify_kano(f, d):
-            if f == 1 and d >= 4:
-                return "Excitement"
-            elif f == 2 and d == 5:
-                return "Must-Have"
-            elif f == 3 and d == 3:
-                return "Indifferent"
-            else:
-                return "Expected"
-
-        classifications = []
         
-        for i, resp in enumerate(kano_responses):
-            try:
-                if not resp.strip():
-                    st.warning(f"⚠️ Skipping empty response at index {i+1}.")
-                    continue  
-
-                match = re.search(r"\{.*\}", resp, re.DOTALL)
-                if not match:
-                    st.warning(f"⚠️ No valid JSON detected in response at index {i+1}. Skipping.")
-                    continue
-                
-                parsed_json = json.loads(match.group())
-
-                if "features" not in parsed_json or not isinstance(parsed_json["features"], list):
-                    st.warning(f"⚠️ Unexpected response format at index {i+1}: {parsed_json}")
-                    continue  
-
-                for feat_obj in parsed_json["features"]:
-                    if "feature" in feat_obj and "functional" in feat_obj and "dysfunctional" in feat_obj:
-                        f_score = rating_map.get(str(feat_obj["functional"]["rating"]).strip(), None)
-                        d_score = rating_map.get(str(feat_obj["dysfunctional"]["rating"]).strip(), None)
-
-                        if f_score is None or d_score is None:
-                            st.warning(f"⚠️ Invalid scores at index {i+1}. Skipping.")
-                            continue
-
-                        category = classify_kano(f_score, d_score)
-                        classifications.append({
-                            "Feature": feat_obj["feature"],
-                            "Kano Classification": category
-                        })
-
-            except json.JSONDecodeError as e:
-                st.warning(f"❌ JSON parsing error at index {i+1}: {e}")
-
-        if classifications:
-            kano_df = pd.DataFrame(classifications)
-            st.dataframe(kano_df)
+        # Check if kano_responses is None or empty
+        if not kano_responses:
+            st.warning("❌ No Kano responses found. Please ensure the survey ran successfully.")
         else:
-            st.warning("🚨 No valid Kano classifications found.")
+            rating_map = {
+                "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, 
+                "I like it": 1, "I expect it": 2, "I am indifferent": 3, 
+                "I can live with it": 4, "I dislike it": 5
+            }
+
+            def classify_kano(f, d):
+                if f == 1 and d >= 4:
+                    return "Excitement"
+                elif f == 2 and d == 5:
+                    return "Must-Have"
+                elif f == 3 and d == 3:
+                    return "Indifferent"
+                else:
+                    return "Expected"
+
+            classifications = []
+            
+            for i, resp in enumerate(kano_responses):
+                try:
+                    if not resp.strip():
+                        st.warning(f"⚠️ Skipping empty response at index {i+1}.")
+                        continue  
+
+                    match = re.search(r"\{.*\}", resp, re.DOTALL)
+                    if not match:
+                        st.warning(f"⚠️ No valid JSON detected in response at index {i+1}. Skipping.")
+                        continue
+                    
+                    parsed_json = json.loads(match.group())
+
+                    if "features" not in parsed_json or not isinstance(parsed_json["features"], list):
+                        st.warning(f"⚠️ Unexpected response format at index {i+1}: {parsed_json}")
+                        continue  
+
+                    for feat_obj in parsed_json["features"]:
+                        if "feature" in feat_obj and "functional" in feat_obj and "dysfunctional" in feat_obj:
+                            f_score = rating_map.get(str(feat_obj["functional"]["rating"]).strip(), None)
+                            d_score = rating_map.get(str(feat_obj["dysfunctional"]["rating"]).strip(), None)
+
+                            if f_score is None or d_score is None:
+                                st.warning(f"⚠️ Invalid scores at index {i+1}. Skipping.")
+                                continue
+
+                            category = classify_kano(f_score, d_score)
+                            classifications.append({
+                                "Feature": feat_obj["feature"],
+                                "Kano Classification": category
+                            })
+
+                except json.JSONDecodeError as e:
+                    st.warning(f"❌ JSON parsing error at index {i+1}: {e}")
+
+            if classifications:
+                kano_df = pd.DataFrame(classifications)
+                st.dataframe(kano_df)
+            else:
+                st.warning("🚨 No valid Kano classifications found.")
