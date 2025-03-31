@@ -105,19 +105,31 @@ with tab1:
                             ],
                             temperature=0.1
                         )
-                        # Expecting output like: {"Age": 35, "Gender": "Female", "Persona": "Tech-savvy early adopter who values quality..."}
+                        # Log raw response for debugging if needed:
+                        st.write(f"Raw profile response {i+1}:", profile_resp.choices[0].message.content)
+                        
+                        # Expecting output like: {"Age": 35, "Gender": "Female", "Persona": "Tech-savvy early adopter..."}
                         profile = json.loads(profile_resp.choices[0].message.content)
+                        
+                        # Ensure all keys exist; if not, set a default value.
+                        if "Age" not in profile:
+                            profile["Age"] = random.randint(18, 77)
+                        if "Gender" not in profile:
+                            profile["Gender"] = "Unknown"
+                        if "Persona" not in profile:
+                            profile["Persona"] = "No persona provided."
+                        
                         profiles.append(profile)
                         personas.append(profile.get("Persona", ""))
                         time.sleep(2)
                         break
-                    except Exception:
+                    except Exception as e:
+                        st.error(f"Error generating profile {i+1}: {e}")
                         retries += 1
                         time.sleep(RETRY_DELAY)
             
             profiles_df = pd.DataFrame(profiles)
     
-                
             # Prepare feature list
             features = [f.strip() for f in features_input.splitlines() if f.strip()]
             kano_responses = []
@@ -132,7 +144,7 @@ with tab1:
                             model="llama3-70b-8192",
                             messages=[
                                 {"role": "system", "content": """
-                                    You are tasked with evaluating product features using the Kano model.Your preferences are influenced by your persona.
+                                    You are tasked with evaluating product features using the Kano model. Your preferences are influenced by your persona.
                                     For each feature provided, rate it under two conditions:
                                     - Functional condition (feature present)
                                     - Dysfunctional condition (feature absent)
@@ -152,7 +164,8 @@ with tab1:
                         kano_responses.append(rating_resp.choices[0].message.content)
                         time.sleep(2)
                         break
-                    except Exception:
+                    except Exception as e:
+                        st.error(f"Error generating Kano rating for respondent {i+1}: {e}")
                         retries += 1
                         time.sleep(RETRY_DELAY)
 
@@ -200,12 +213,9 @@ with tab2:
         if show_persona:
             st.dataframe(profiles_df)
         else:
-            st.dataframe(profiles_df.drop(columns=["Persona"]))
-
-            if "Persona" in profiles_df.columns:
-                st.dataframe(profiles_df.drop(columns=["Persona"]))
-            else:
-                st.dataframe(profiles_df)
+            # Only drop 'Persona' if it exists
+            cols_to_drop = [col for col in ["Persona"] if col in profiles_df.columns]
+            st.dataframe(profiles_df.drop(columns=cols_to_drop))
         
         # Process Kano ratings and classification
         kano_responses = st.session_state.results["responses"]
