@@ -201,6 +201,11 @@ with tab2:
             st.dataframe(profiles_df)
         else:
             st.dataframe(profiles_df.drop(columns=["Persona"]))
+
+            if "Persona" in profiles_df.columns:
+                st.dataframe(profiles_df.drop(columns=["Persona"]))
+            else:
+                st.dataframe(profiles_df)
         
         # Process Kano ratings and classification
         kano_responses = st.session_state.results["responses"]
