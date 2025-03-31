@@ -13,7 +13,7 @@ st.set_page_config(page_title="Kano Model Feature Evaluation", page_icon="🤖",
 
 # Sidebar
 with st.sidebar:
-    st.title("⚙️ Instructions")
+    st.title("⚙️ A Dr. Pricing")
     api_key = st.secrets["groq"]["api_key"]
     st.markdown("---")
     st.markdown("### How does it work?")
@@ -21,7 +21,7 @@ with st.sidebar:
         """
         1. In the **Setup** tab, you enter your product details and feature list.
         2. Synthetic respondents (with hidden persona details) evaluate the features.
-        3. In **Results**, you see Kano evaluation statistics, classifications in neat tables and diagrams.
+        3. In **Results**, you see Kano evaluation statistics, classifications in tables and diagrams.
         """
     )
     st.markdown("---")
@@ -235,9 +235,10 @@ with tab2:
                 st.dataframe(kano_df)
                 
                 st.markdown(
-                    "Scale Explanation: Ratings are on a scale from 1 to 5 where 1 means 'I like it', 2 means 'I expect it', "
+                    "**Scale Explanation:** Ratings are on a scale from 1 to 5 where 1 means 'I like it', 2 means 'I expect it', "
                     "3 means 'I am indifferent', 4 means 'I can live with it', and 5 means 'I dislike it'. "
-                    "Classification Rules: 'Excitement' is assigned when the functional rating is 1 and the dysfunctional rating is 4 or higher; "
+                    
+                    "**Classification Rules:** 'Excitement' is assigned when the functional rating is 1 and the dysfunctional rating is 4 or higher; "
                     "'Must-Have' is when the functional rating is 2 and the dysfunctional rating is 5; 'Indifferent' when both ratings are 3; "
                     "and 'Expected' for any other combination. The Net Kano Score is computed as (Rating (Present) - Rating (Missing))."
                 )
