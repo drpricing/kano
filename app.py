@@ -235,12 +235,14 @@ with tab2:
                 st.dataframe(kano_df)
                 
                 st.markdown(
-                    "**Scale Explanation:** Ratings are on a scale from 1 to 5 where 1 means 'I like it', 2 means 'I expect it', "
+                    """
+                    **Scale Explanation:** Ratings are on a scale from 1 to 5, where 1 means 'I like it', 2 means 'I expect it', "
                     "3 means 'I am indifferent', 4 means 'I can live with it', and 5 means 'I dislike it'. "
                     
                     "**Classification Rules:** 'Excitement' is assigned when the functional rating is 1 and the dysfunctional rating is 4 or higher; "
                     "'Must-Have' is when the functional rating is 2 and the dysfunctional rating is 5; 'Indifferent' when both ratings are 3; "
-                    "and 'Expected' for any other combination. The Net Kano Score is computed as (Rating (Present) - Rating (Missing))."
+                    "and 'Expected' for any other combination. The Net Kano Score is computed as (Rating (Present) - Rating (Missing)).
+                    """
                 )
                 
                 # Generate stacked column chart: x-axis = features, y-axis = count, legend = Kano Classification
