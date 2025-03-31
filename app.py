@@ -247,3 +247,7 @@ with tab2:
                 
                 st.download_button(label="Download Kano Evaluation Data",
                                    data=kano_df.to_csv(index=True).encode('utf-8'),
+                                   file_name=f"kano_evaluation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                                   mime="text/csv")
+            else:
+                st.warning("🚨 No valid Kano classifications found.")
