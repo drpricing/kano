@@ -82,8 +82,10 @@ with tab1:
                     try:
                         response = client.chat.completions.create(
                             model="llama3-70b-8192",
-                            messages=[{"role": "system", "content": "Create a customer persona based on:"},
-                                      {"role": "user", "content": f"Age: {row['Age']}; Gender: {row['Gender']}"}],
+                            messages=[
+                                {"role": "system", "content": "Create a customer persona based on:"},
+                                {"role": "user", "content": f"Age: {row['Age']}; Gender: {row['Gender']}"}
+                            ],
                             temperature=0
                         )
                         personas.append(response.choices[0].message.content)
@@ -105,20 +107,22 @@ with tab1:
                     try:
                         response = client.chat.completions.create(
                             model="llama3-70b-8192",
-                            messages=[{"role": "system", "content": """
-                                You are tasked with evaluating product features using a Kano model. For each feature, 
-                                please rate it on a scale from 1 to 5, based on the following meanings:
-                                - 1: "I like it"
-                                - 2: "I expect it"
-                                - 3: "I am indifferent"
-                                - 4: "I can live with it"
-                                - 5: "I dislike it"
-                                For each feature, you need to provide two ratings: one for the functional condition (feature present)
-                                and one for the dysfunctional condition (feature absent).
-                                Please return the ratings in the following format:
-                                {"feature_name": {"functional": {"rating": X}, "dysfunctional": {"rating": X}}}
-                            """},
-                            {"role": "user", "content": f"Persona: {row['Persona']} | Features: {features}"}],
+                            messages=[
+                                {"role": "system", "content": """
+                                    You are tasked with evaluating product features using a Kano model. For each feature, 
+                                    please rate it on a scale from 1 to 5, based on the following meanings:
+                                    - 1: "I like it"
+                                    - 2: "I expect it"
+                                    - 3: "I am indifferent"
+                                    - 4: "I can live with it"
+                                    - 5: "I dislike it"
+                                    For each feature, you need to provide two ratings: one for the functional condition (feature present)
+                                    and one for the dysfunctional condition (feature absent).
+                                    Please return the ratings in the following format:
+                                    {"feature_name": {"functional": {"rating": X}, "dysfunctional": {"rating": X}}}
+                                """},
+                                {"role": "user", "content": f"Persona: {row['Persona']} | Features: {features}"}
+                            ],
                             temperature=0
                         )
                         kano_responses.append(response.choices[0].message.content)
@@ -133,7 +137,7 @@ with tab1:
             st.session_state.experiment_complete = True
             st.success("✅ Survey completed! View results in 'Results'.")
 
-# --- Helper Function for Parsing JSON ---
+# --- Helper function to clean and parse JSON ---
 def clean_and_parse_json(raw_response):
     """Clean the raw response and attempt to parse as JSON."""
     # Log the raw response for debugging
@@ -143,21 +147,23 @@ def clean_and_parse_json(raw_response):
     if not raw_response.strip():
         st.warning("⚠️ Empty response detected. Skipping this entry.")
         return None
-    
-    try:
-        # Try directly loading the JSON to see if it's already valid
-        return json.loads(raw_response)
-    except json.JSONDecodeError as e:
-        st.warning(f"❌ JSON parsing error: {e}")
-        # Attempt to clean up common issues like missing quotes or commas
-        cleaned_response = re.sub(r"([a-zA-Z0-9]+):", r'"\1":', raw_response)  # Add quotes around keys
-        cleaned_response = re.sub(r"([a-zA-Z0-9]+),", r'"\1",', cleaned_response)  # Add quotes around values if necessary
-        cleaned_response = f"[{cleaned_response}]"  # Ensure it's a list for consistent parsing
+
+    # Try to extract the JSON part of the response (everything that looks like JSON)
+    json_pattern = r'(\{.*\})'  # Regular expression to capture the JSON part
+    match = re.search(json_pattern, raw_response, re.DOTALL)
+
+    if match:
+        json_part = match.group(1)
+        st.write(f"Extracted JSON: {json_part}")  # Log the extracted JSON
         try:
-            return json.loads(cleaned_response)
+            # Parse the extracted JSON
+            return json.loads(json_part)
         except json.JSONDecodeError as e:
-            st.warning(f"❌ Cleaning failed: {e}")
+            st.warning(f"❌ JSON parsing error: {e}")
             return None
+    else:
+        st.warning("❌ No valid JSON found in the response.")
+        return None
 
 # --- TAB 2: Results ---
 with tab2:
@@ -205,34 +211,26 @@ with tab2:
                     # Debugging: Output raw response to identify the problem
                     st.write(f"Raw response at index {i+1}: {resp}")
 
-                    # Clean and parse the raw response into JSON
+                    # Clean and parse JSON
                     parsed_json = clean_and_parse_json(resp)
 
-                    if parsed_json is None:
-                        continue
-                    
-                    # Check if the parsed JSON contains valid feature data
-                    if "features" not in parsed_json or not isinstance(parsed_json["features"], list):
-                        st.warning(f"⚠️ Unexpected response format at index {i+1}: {parsed_json}")
-                        continue  
-
-                    for feat_obj in parsed_json["features"]:
-                        if "feature" in feat_obj and "functional" in feat_obj and "dysfunctional" in feat_obj:
-                            f_score = rating_map.get(str(feat_obj["functional"]["rating"]).strip(), None)
-                            d_score = rating_map.get(str(feat_obj["dysfunctional"]["rating"]).strip(), None)
+                    if parsed_json:
+                        # Process the parsed JSON
+                        for feature, data in parsed_json.items():
+                            f_score = rating_map.get(str(data['functional']['rating']), None)
+                            d_score = rating_map.get(str(data['dysfunctional']['rating']), None)
 
                             if f_score is None or d_score is None:
-                                st.warning(f"⚠️ Invalid scores at index {i+1}. Skipping.")
+                                st.warning(f"⚠️ Invalid scores at index {i+1} for feature {feature}. Skipping.")
                                 continue
 
                             category = classify_kano(f_score, d_score)
                             classifications.append({
-                                "Feature": feat_obj["feature"],
+                                "Feature": feature,
                                 "Kano Classification": category
                             })
-
-                except Exception as e:
-                    st.warning(f"❌ Error processing response at index {i+1}: {e}")
+                except json.JSONDecodeError as e:
+                    st.warning(f"❌ JSON parsing error at index {i+1}: {e}")
                     continue
 
             if classifications:
