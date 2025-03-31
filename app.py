@@ -13,7 +13,7 @@ st.set_page_config(page_title="Kano Model Feature Evaluation", page_icon="🤖",
 
 # Sidebar
 with st.sidebar:
-    st.title("⚙️ A Dr. Pricing")
+    st.title("⚙️ A Dr. Pricing App")
     api_key = st.secrets["groq"]["api_key"]
     st.markdown("---")
     st.markdown("### How does it work?")
