@@ -73,17 +73,18 @@ with tab1:
             client = Groq(api_key=api_key)
 
             # Generate synthetic respondent profiles (with hidden personas)
-            ages = range(18, 78)
-            genders = ["Male", "Female", "Unknown"]
-            profiles = [{"Age": random.choice(ages), "Gender": random.choice(genders)} for _ in range(num_respondents)]
-            profiles_df = pd.DataFrame(profiles)
+            #ages = range(18, 78)
+            #genders = ["Male", "Female", "Unknown"]
+            #profiles = [{"Age": random.choice(ages), "Gender": random.choice(genders)} for _ in range(num_respondents)]
+            #profiles_df = pd.DataFrame(profiles)
 
             MAX_RETRIES = 3
             RETRY_DELAY = 10
             personas = []
-
-            # Generate hidden persona descriptions (backend only)
-            for i, row in profiles_df.iterrows():
+            profiles = []
+            
+            # Generate synthetic respondent personas with age & gender derived from target customers
+            for i in range(num_respondents):
                 progress_bar.progress((i + 1) / (num_respondents * 2))
                 retries = 0
                 while retries < MAX_RETRIES:
@@ -91,18 +92,38 @@ with tab1:
                         persona_resp = client.chat.completions.create(
                             model="llama3-70b-8192",
                             messages=[
-                                {"role": "system", "content": "Create a customer persona based on age, gender, and target customer description."},
-                                {"role": "user", "content": f"Target Customers: {target_customers}\nAge: {row['Age']}, Gender: {row['Gender']}"}
+                                {"role": "system", "content": """
+                                    Generate a synthetic customer persona based on the provided target customer description.
+                                    The persona should include:
+                                    - Age (realistic for the given target group)
+                                    - Gender (if applicable)
+                                    - A brief description of their preferences, habits, or buying behavior.
+                                    Return the persona as JSON with fields: "Age", "Gender", "Description".
+                                """},
+                                {"role": "user", "content": f"Target Customer Description: {target_customers}"}
                             ],
-                            temperature=0.1
+                            temperature=0.7
                         )
-                        personas.append(persona_resp.choices[0].message.content)
+                        persona_data = json.loads(persona_resp.choices[0].message.content)
+
+                        # Extract age, gender, and description
+                        age = persona_data.get("Age", random.randint(18, 78))  # Fallback random age
+                        gender = persona_data.get("Gender", random.choice(["Male", "Female", "Unknown"]))  # Fallback gender
+                        description = persona_data.get("Description", "No additional details provided.")
+            
+                        personas.append(description)
+                        profiles.append({"Age": age, "Gender": gender, "Persona": description})
+            
                         time.sleep(2)
-                        break
-                    except Exception:
+                        break  # Exit retry loop if successful
+            
+                        except Exception as e:
                         retries += 1
                         time.sleep(RETRY_DELAY)
-            profiles_df["Persona"] = personas  # Stored in backend; not shown to user by default
+            
+                        # Store generated profiles in DataFrame
+                        profiles_df = pd.DataFrame(profiles)
+
 
             # Prepare feature list
             features = [f.strip() for f in features_input.splitlines() if f.strip()]
