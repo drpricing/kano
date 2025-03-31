@@ -13,7 +13,7 @@ st.set_page_config(page_title="Kano Model Feature Evaluation", page_icon="🤖",
 
 # Sidebar
 with st.sidebar:
-    st.title("⚙️ A Dr. Pricing App")
+    st.title("⚙️ Instructions")
     api_key = st.secrets["groq"]["api_key"]
     st.markdown("---")
     st.markdown("### How does it work?")
@@ -152,7 +152,6 @@ with tab1:
 # -----------------------------
 def clean_and_parse_json(raw_response):
     """Extracts and parses the first JSON object in the response (ratings only)."""
-    # (Debug output removed)
     if not raw_response.strip():
         st.warning("⚠️ Empty response detected. Skipping this entry.")
         return None
@@ -235,27 +234,18 @@ with tab2:
                 st.write("#### Kano Classification Table")
                 st.dataframe(kano_df)
                 
-                st.markdown("""
-                **Scale Explanation:**  
-                Ratings are based on a scale from 1 to 5:  
-                - 1: I like it  
-                - 2: I expect it  
-                - 3: I am indifferent  
-                - 4: I can live with it  
-                - 5: I dislike it  
+                st.markdown(
+                    "Scale Explanation: Ratings are on a scale from 1 to 5 where 1 means 'I like it', 2 means 'I expect it', "
+                    "3 means 'I am indifferent', 4 means 'I can live with it', and 5 means 'I dislike it'. "
+                    "Classification Rules: 'Excitement' is assigned when the functional rating is 1 and the dysfunctional rating is 4 or higher; "
+                    "'Must-Have' is when the functional rating is 2 and the dysfunctional rating is 5; 'Indifferent' when both ratings are 3; "
+                    "and 'Expected' for any other combination. The Net Kano Score is computed as (Rating (Present) - Rating (Missing))."
+                )
                 
-                **Classification Rules:**  
-                - **Excitement:** Functional rating of 1 and Dysfunctional rating ≥ 4  
-                - **Must-Have:** Functional rating of 2 and Dysfunctional rating of 5  
-                - **Indifferent:** Both ratings equal 3  
-                - **Expected:** Any other combination  
-                The **Net Kano Score** is computed as *Rating (Present) - Rating (Missing)*.
-                """)
-                
-                # Generate diagram: frequency of each classification per feature
+                # Generate stacked column chart: x-axis = features, y-axis = count, legend = Kano Classification
                 freq_df = kano_df.groupby(["Feature", "Kano Classification"]).size().reset_index(name="Count")
                 fig = px.bar(freq_df, x="Feature", y="Count", color="Kano Classification",
-                             barmode="group", title="Frequency of Kano Classifications per Feature")
+                             barmode="stack", title="Stacked Kano Classification Counts per Feature")
                 st.plotly_chart(fig)
                 
                 # Download button for CSV export
