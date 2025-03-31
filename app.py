@@ -72,60 +72,40 @@ with tab1:
             progress_bar = st.progress(0)
             client = Groq(api_key=api_key)
 
-                    profiles = []
-        personas = []
-        MAX_RETRIES = 3
-        RETRY_DELAY = 10
-        
-        # Generate synthetic respondent profiles
+	    MAX_RETRIES = 3
+	    RETRY_DELAY = 10    
+	    
+	    def generate_synthetic_profiles(target_customers, num_respondents, progress_bar):
+            profiles = []
+    
         for i in range(num_respondents):
-            progress_bar.progress((i + 1) / (num_respondents * 2))
-            retries = 0
-            while retries < MAX_RETRIES:
-                try:
-                    profile_resp = client.chat.completions.create(
-                        model="llama3-70b-8192",
-                        messages=[
-                            {"role": "system", "content": "Create a synthetic respondent profile including age and gender based on the target customer description:"},
-                            {"role": "user", "content": target_customers}
-                        ],
-                        temperature=0.1
-                    )
-                    profile_data = json.loads(profile_resp.choices[0].message.content)
-                    profiles.append(profile_data)
-                    time.sleep(2)
-                    break
-                except Exception:
-                    retries += 1
-                    time.sleep(RETRY_DELAY)
-
-        profiles_df = pd.DataFrame(profiles)
+        progress_bar.progress((i + 1) / num_respondents)
+        retries = 0
         
-        # Generate hidden persona descriptions
-        for i, row in profiles_df.iterrows():
-            progress_bar.progress((i + 1 + num_respondents) / (num_respondents * 2))
-            retries = 0
-            while retries < MAX_RETRIES:
-                try:
-                    persona_resp = client.chat.completions.create(
-                        model="llama3-70b-8192",
-                        messages=[
-                            {"role": "system", "content": "Create a customer persona based on:"},
-                            {"role": "user", "content": f"Age: {row['Age']}; Gender: {row['Gender']}"}
-                        ],
-                        temperature=0.1
-                    )
-                    personas.append(persona_resp.choices[0].message.content)
-                    time.sleep(2)
-                    break
-                except Exception:
-                    retries += 1
-                    time.sleep(RETRY_DELAY)
-
-        if personas:
-            profiles_df["Persona"] = personas  
-
-            # Prepare feature list
+        while retries < MAX_RETRIES:
+            try:
+                response = client.chat.completions.create(
+                    model="llama3-70b-8192",
+                    messages=[
+                        {"role": "system", "content": "Generate a synthetic user profile (age, gender, persona) based on this target customer description."},
+                        {"role": "user", "content": f"Target customers: {target_customers}"}
+                    ],
+                    temperature=0.1
+                )
+                
+                profile = response.choices[0].message.content
+                profiles.append(profile)
+                time.sleep(2)  # Rate limiting
+                break
+            
+            except Exception:
+                retries += 1
+                time.sleep(RETRY_DELAY)
+    
+        profiles_df = pd.DataFrame([eval(p) for p in profiles])  # Convert string output to dict
+        return profiles_df            
+    
+    # Prepare feature list
             features = [f.strip() for f in features_input.splitlines() if f.strip()]
             kano_responses = []
 
