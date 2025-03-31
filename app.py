@@ -118,7 +118,7 @@ with tab1:
                             model="llama3-70b-8192",
                             messages=[
                                 {"role": "system", "content": """
-                                    You are tasked with evaluating product features using the Kano model.
+                                    You are tasked with evaluating product features using the Kano model.Your preferences are influenced by your persona.
                                     For each feature provided, rate it under two conditions:
                                     - Functional condition (feature present)
                                     - Dysfunctional condition (feature absent)
@@ -133,7 +133,7 @@ with tab1:
                                 """},
                                 {"role": "user", "content": f"Features: {features}"}
                             ],
-                            temperature=0
+                            temperature=1
                         )
                         kano_responses.append(rating_resp.choices[0].message.content)
                         time.sleep(2)
